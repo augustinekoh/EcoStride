@@ -1,0 +1,77 @@
+{
+  "players": [
+    {
+      "id": "u1",
+      "name": "EcoAlex",
+      "avatar": "🏃",
+      "location": [103.6420, 1.5620],
+      "weeklyPoints": 1420,
+      "monthlyPoints": 5600,
+      "totalMileageKm": 342.5,
+      "guildName": "Team Green"
+    },
+    {
+      "id": "u2",
+      "name": "GreenQueen",
+      "avatar": "🚴‍♀️",
+      "location": [103.6450, 1.5580],
+      "weeklyPoints": 1250,
+      "monthlyPoints": 4800,
+      "totalMileageKm": 280.1,
+      "guildName": "Eco Warriors"
+    },
+    {
+      "id": "u3",
+      "name": "SpeedySnail",
+      "avatar": "🐌",
+      "location": [103.6390, 1.5650],
+      "weeklyPoints": 1100,
+      "monthlyPoints": 4200,
+      "totalMileageKm": 150.8,
+      "guildName": "Nature Knights"
+    },
+    {
+      "id": "u4",
+      "name": "TreeHugger99",
+      "avatar": "🌲",
+      "location": [103.6480, 1.5610],
+      "weeklyPoints": 950,
+      "monthlyPoints": 3900,
+      "totalMileageKm": 410.2,
+      "guildName": "Team Green"
+    },
+    {
+      "id": "u5",
+      "name": "OceanSaver",
+      "avatar": "🌊",
+      "location": [103.6405, 1.5595],
+      "weeklyPoints": 890,
+      "monthlyPoints": 5100,
+      "totalMileageKm": 195.4,
+      "guildName": "Eco Warriors"
+    }
+  ],
+  "guilds": [
+    {
+      "id": "g1",
+      "name": "Team Green",
+      "power": 45000,
+      "members": 12,
+      "avatar": "🌿"
+    },
+    {
+      "id": "g2",
+      "name": "Eco Warriors",
+      "power": 42500,
+      "members": 15,
+      "avatar": "🛡️"
+    },
+    {
+      "id": "g3",
+      "name": "Nature Knights",
+      "power": 38000,
+      "members": 8,
+      "avatar": "⚔️"
+    }
+  ]
+}
