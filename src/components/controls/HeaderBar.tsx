@@ -1,17 +1,73 @@
 import React, { useState } from 'react';
 import { useDemoStore } from '../../stores/useDemoStore';
 import { useUserStore } from '../../stores/useUserStore';
-import { Map, LayoutDashboard, Play, Pause, Menu, X, Trophy } from 'lucide-react';
+import { Map, LayoutDashboard, Play, Pause, Menu, X, Trophy, Gift, Mail } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { auth } from '../../firebase';
 import { LeaderboardModal } from '../modals/LeaderboardModal';
-
+import { PointsStoreModal } from '../modals/PointsStoreModal';
+import { MailboxModal } from '../modals/MailboxModal';
+import { useMailStore } from '../../stores/useMailStore';
+import { collection, query, onSnapshot, orderBy, doc, getDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
 export const HeaderBar: React.FC = () => {
   const { currentMode, setMode, isAutoPlaying, setIsAutoPlaying, activeView, setActiveView } = useDemoStore();
   const { userCoins } = useUserStore();
   const { user, role } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showStore, setShowStore] = useState(false);
+  const [showMailbox, setShowMailbox] = useState(false);
+  const { unreadCount, setMailsData } = useMailStore();
+
+  React.useEffect(() => {
+    if (!user) return;
+
+    let userGuildId: string | null = null;
+    let unsubUser: () => void = () => {};
+    let unsubMails: () => void = () => {};
+
+    const setup = async () => {
+      // 1. Listen to user doc for readMails array and guildId
+      unsubUser = onSnapshot(doc(db, 'users', user.uid), (userDoc) => {
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          userGuildId = data.guildId && data.guildId !== 'None' ? data.guildId : null;
+          const readMails = data.readMails || [];
+          
+          // 2. Fetch mails and filter
+          const q = query(collection(db, 'mail'), orderBy('createdAt', 'desc'));
+          unsubMails = onSnapshot(q, (snapshot) => {
+            const fetchedMails = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            const filtered = fetchedMails.filter(mail => {
+              // 1. Check scope
+              if (mail.expiresForNewUsers && data.createdAt) {
+                const userCreatedTime = new Date(data.createdAt).getTime();
+                if (userCreatedTime > mail.createdAt) return false;
+              }
+
+              // 2. Check audience
+              if (mail.recipientType === 'all') return true;
+              if (mail.recipientType === 'user' && mail.recipientId === user.uid) return true;
+              if (mail.recipientType === 'merchant_all' && role === 'merchant') return true;
+              if (mail.recipientType === 'guild' && userGuildId && mail.recipientId === userGuildId) return true;
+              return false;
+            });
+            
+            setMailsData(filtered, readMails);
+          });
+        }
+      });
+    };
+
+    setup();
+
+    return () => {
+      unsubUser();
+      unsubMails();
+    };
+  }, [user, role, setMailsData]);
 
   return (
     <div className="absolute top-4 left-4 z-50">
@@ -57,14 +113,27 @@ export const HeaderBar: React.FC = () => {
             >
               <Trophy size={16} /> Leaderboards
             </button>
+            <button 
+              onClick={() => { setShowStore(true); setMenuOpen(false); }}
+              className={`w-full px-3 py-2 rounded-xl flex items-center gap-2 font-bold text-sm transition-all border-2 border-transparent bg-slate-50 hover:bg-slate-100 text-brand-pink`}
+            >
+              <Gift size={16} /> Points Store
+            </button>
+            <button 
+              onClick={() => { setShowMailbox(true); setMenuOpen(false); }}
+              className={`w-full px-3 py-2 rounded-xl flex items-center justify-between font-bold text-sm transition-all border-2 border-transparent bg-slate-50 hover:bg-slate-100 text-brand-blue relative`}
+            >
+              <div className="flex items-center gap-2">
+                <Mail size={16} /> Mailbox
+              </div>
+              {unreadCount > 0 && (
+                <div className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black min-w-[20px] text-center border-2 border-slate-900 shadow-sm animate-bounce">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </div>
+              )}
+            </button>
             {role === 'merchant' && (
               <>
-                <button 
-                  onClick={() => { setActiveView('merchant_dashboard'); setMenuOpen(false); }}
-                  className={`w-full px-3 py-2 rounded-xl flex items-center gap-2 font-bold text-sm transition-all ${activeView === 'merchant_dashboard' ? 'bg-brand-orange border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a]' : 'border-2 border-transparent bg-slate-50 hover:bg-slate-100 text-slate-600'}`}
-                >
-                  <LayoutDashboard size={16} /> Dashboard
-                </button>
                 <button 
                   onClick={() => { setActiveView('merchant_onboarding'); setMenuOpen(false); }}
                   className={`w-full px-3 py-2 rounded-xl font-bold text-sm text-left transition-all ${activeView === 'merchant_onboarding' ? 'bg-brand-green border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a]' : 'border-2 border-transparent bg-slate-50 hover:bg-slate-100 text-slate-600'}`}
@@ -100,7 +169,13 @@ export const HeaderBar: React.FC = () => {
       )}
 
       {/* Leaderboard Modal */}
-      <LeaderboardModal isOpen={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+      {showLeaderboard && <LeaderboardModal isOpen={true} onClose={() => setShowLeaderboard(false)} />}
+
+      {/* Points Store Modal */}
+      {showStore && <PointsStoreModal onClose={() => setShowStore(false)} />}
+
+      {/* Mailbox Modal */}
+      {showMailbox && <MailboxModal onClose={() => setShowMailbox(false)} />}
     </div>
   );
 };
