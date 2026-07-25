@@ -4,6 +4,9 @@ interface UserState {
   userCoins: number
   totalCarbonSaved: number
   totalDistanceKm: number
+  streaks: number
+  vouchersCollected: number
+  challengesCompleted: number
   unlockedBadges: string[]
   setUserData: (data: Partial<UserState>) => void
   addCoins: (amount: number) => void
@@ -15,6 +18,9 @@ export const useUserStore = create<UserState>((set) => ({
   userCoins: 0,
   totalCarbonSaved: 0,
   totalDistanceKm: 0,
+  streaks: 5, // mock data
+  vouchersCollected: 3, // mock data
+  challengesCompleted: 12, // mock data
   unlockedBadges: ['badge-01'],
   setUserData: (data) => set((state) => ({ ...state, ...data })),
   

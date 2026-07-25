@@ -1,7 +1,11 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDemoStore } from './stores/useDemoStore';
-import { HeaderBar } from './components/controls/HeaderBar';
+import { BottomNavBar } from './components/controls/BottomNavBar';
+import { ProfileView } from './components/profile/ProfileView';
+import { CityView } from './components/city/CityView';
+import { LeaderboardModal } from './components/modals/LeaderboardModal';
+import { LandingPage } from './components/landing/LandingPage';
 import { RouteSimulator } from './components/controls/RouteSimulator';
 import { MapView } from './components/map/MapView';
 import { ImpactReportModal } from './components/modals/ImpactReportModal';
@@ -20,11 +24,21 @@ function PublicApp() {
   const { activeView, isWaitingForApproval } = useDemoStore();
   const { user } = useAuthStore();
 
+  if (!user || isWaitingForApproval) {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-brand-cream relative text-slate-900 font-sans">
+        <AuthModal />
+      </div>
+    );
+  }
+
   return (
     <div className="w-screen h-screen overflow-hidden bg-brand-cream relative text-slate-900 font-sans">
-      {(!user || isWaitingForApproval) && <AuthModal />}
-      <HeaderBar />
+      <BottomNavBar />
       
+      {activeView === 'landing' && <LandingPage />}
+      {activeView === 'profile' && <ProfileView />}
+      {activeView === 'city' && <CityView />}
       {activeView === 'map' && (
         <>
           <MapView />
@@ -34,6 +48,13 @@ function PublicApp() {
       )}
       {activeView === 'merchant_dashboard' && <MerchantDashboard />}
       {activeView === 'merchant_onboarding' && <MerchantOnboardingForm />}
+      {activeView === 'group' && (
+        <div className="h-full w-full bg-brand-cream flex items-center justify-center p-8 text-center">
+          <h2 className="text-3xl font-black uppercase text-slate-400">Group System Coming Soon!</h2>
+        </div>
+      )}
+
+      <LeaderboardModal isOpen={activeView === 'leaderboard'} onClose={() => useDemoStore.getState().setActiveView('landing')} />
     </div>
   );
 }

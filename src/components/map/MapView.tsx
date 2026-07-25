@@ -16,6 +16,9 @@ import routesData from '../../mock/routes.json';
 import territoriesData from '../../mock/territories.json';
 import leaderboardData from '../../mock/leaderboard.json';
 import { CreateSignpostModal } from './CreateSignpostModal';
+import { LeaderboardModal } from '../modals/LeaderboardModal';
+import { UserMerchantModal } from '../modals/UserMerchantModal';
+import { Trophy, Store } from 'lucide-react';
 
 export const MapView: React.FC = () => {
   const { demoProgress, currentMode, setShowReportModal } = useDemoStore();
@@ -54,6 +57,8 @@ export const MapView: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showSignpostModal, setShowSignpostModal] = useState(false);
   const [showCongratsModal, setShowCongratsModal] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showMerchantModal, setShowMerchantModal] = useState(false);
   const { user } = useAuthStore();
 
   // Fetch real merchants from Firestore
@@ -592,6 +597,22 @@ export const MapView: React.FC = () => {
         </div>
       )}
 
+      {/* Left Side Floating Icons */}
+      <div className="absolute top-24 left-4 flex flex-col gap-4 z-[90]">
+        <button 
+          onClick={() => setShowLeaderboard(true)}
+          className="w-12 h-12 bg-white rounded-full border-2 border-slate-900 shadow-comic flex items-center justify-center hover:-translate-y-1 active:translate-y-1 active:shadow-none transition-all group"
+        >
+          <Trophy size={20} className="text-brand-yellow group-hover:scale-110 transition-transform" />
+        </button>
+        <button 
+          onClick={() => setShowMerchantModal(true)}
+          className="w-12 h-12 bg-white rounded-full border-2 border-slate-900 shadow-comic flex items-center justify-center hover:-translate-y-1 active:translate-y-1 active:shadow-none transition-all group"
+        >
+          <Store size={20} className="text-brand-orange group-hover:scale-110 transition-transform" />
+        </button>
+      </div>
+
       {/* Unified Radial FAB (Frosted Glass) */}
       <div className="absolute bottom-32 right-8 flex flex-col items-center justify-end z-50">
         
@@ -657,7 +678,7 @@ export const MapView: React.FC = () => {
 
       {/* Merchant Confirmation Overlay */}
       {selectedMerchant && !activeRouteData && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white border-2 border-slate-900 shadow-comic px-8 py-6 rounded-3xl flex flex-col items-center gap-4 z-40 w-80 text-center animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-white border-2 border-slate-900 shadow-comic px-8 py-6 rounded-3xl flex flex-col items-center gap-4 z-[110] w-80 text-center animate-in slide-in-from-bottom-10 fade-in duration-300">
           <div>
             <h3 className="text-2xl font-black text-slate-900">{selectedMerchant.storeName}</h3>
             <p className="text-sm font-bold text-slate-500 mt-1">{selectedMerchant.category}</p>
@@ -680,7 +701,7 @@ export const MapView: React.FC = () => {
 
       {/* Distance Overlay (Navigation Active) */}
       {currentMode === 'explore' && distanceToTarget !== null && selectedMerchant && activeRouteData && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white border-2 border-slate-900 shadow-comic px-6 py-3 rounded-full flex items-center gap-4 z-40 animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-white border-2 border-slate-900 shadow-comic px-6 py-3 rounded-full flex items-center gap-4 z-[110] animate-in slide-in-from-bottom-10 fade-in duration-300">
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase">Navigating to: {selectedMerchant.storeName}</p>
             <p className="text-xl font-black text-slate-900">{distanceToTarget} km <span className="text-sm font-bold text-slate-500">remaining</span></p>
@@ -726,6 +747,9 @@ export const MapView: React.FC = () => {
           </div>
         </div>
       )}
+
+      <LeaderboardModal isOpen={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+      <UserMerchantModal isOpen={showMerchantModal} onClose={() => setShowMerchantModal(false)} />
     </div>
   );
 };

@@ -4,7 +4,7 @@ interface DemoState {
   currentMode: 'explore' | 'demo'
   demoProgress: number
   isAutoPlaying: boolean
-  activeView: 'map' | 'merchant_dashboard' | 'merchant_onboarding'
+  activeView: 'landing' | 'map' | 'merchant_dashboard' | 'merchant_onboarding' | 'leaderboard' | 'group' | 'profile' | 'city'
   showReportModal: boolean
   completedDistanceKm: number
   isWaitingForApproval: boolean
@@ -14,7 +14,7 @@ interface DemoState {
   setMode: (mode: 'explore' | 'demo') => void
   setProgress: (progress: number | ((prev: number) => number)) => void
   setIsAutoPlaying: (playing: boolean) => void
-  setActiveView: (view: 'map' | 'merchant_dashboard' | 'merchant_onboarding') => void
+  setActiveView: (view: 'landing' | 'map' | 'merchant_dashboard' | 'merchant_onboarding' | 'leaderboard' | 'group' | 'profile' | 'city') => void
   setShowReportModal: (show: boolean) => void
   setCompletedDistanceKm: (dist: number) => void
 }
@@ -23,7 +23,7 @@ export const useDemoStore = create<DemoState>((set) => ({
   currentMode: 'explore',
   demoProgress: 0,
   isAutoPlaying: false,
-  activeView: 'map',
+  activeView: 'landing',
   showReportModal: false,
   completedDistanceKm: 0,
   isWaitingForApproval: false,
