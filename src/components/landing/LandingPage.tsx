@@ -1,110 +1,447 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUserStore } from '../../stores/useUserStore';
-import { Search, Flame, Map as MapIcon, Trophy, Leaf, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { Bell, Activity, Map as MapIcon, ChevronRight, ChevronDown, ChevronLeft, Calendar as CalendarIcon, X } from 'lucide-react';
+
+// --- Utility Functions for Dates ---
+const getMonday = (d: Date) => {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(date.setDate(diff));
+};
+
+const isSameDay = (d1: Date, d2: Date) => {
+  return d1.getFullYear() === d2.getFullYear() &&
+         d1.getMonth() === d2.getMonth() &&
+         d1.getDate() === d2.getDate();
+};
+
+const getDistanceForDate = (date: Date, history: any[]) => {
+  return history
+    .filter(h => isSameDay(new Date(h.date), date))
+    .reduce((sum, h) => sum + h.distance, 0);
+};
 
 export const LandingPage: React.FC = () => {
-  const { totalDistanceKm, streaks, totalCarbonSaved, challengesCompleted } = useUserStore();
-  const [currentGoalIndex, setCurrentGoalIndex] = useState(0);
+  const { totalDistanceKm, streaks, totalCarbonSaved, activityHistory } = useUserStore();
+  const { user } = useAuthStore();
+  
+  const [greeting, setGreeting] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
+  
+  const [progressView, setProgressView] = useState<'Week' | 'Month'>('Week');
+  
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarView, setCalendarView] = useState<'Week' | 'Month'>('Week');
+  const [baseDate, setBaseDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  const goals = [
-    { label: "This Week", value: `${totalDistanceKm} km`, icon: <Activity size={40} className="text-slate-900 drop-shadow-[2px_2px_0px_#fff]" />, bg: "bg-brand-blue" },
-    { label: "Streak", value: `${streaks} Days`, icon: <Flame size={40} className="text-slate-900 drop-shadow-[2px_2px_0px_#fff]" />, bg: "bg-brand-orange" },
-    { label: "Reduced", value: `${totalCarbonSaved} kg`, icon: <Leaf size={40} className="text-slate-900 drop-shadow-[2px_2px_0px_#fff]" />, bg: "bg-brand-green" },
-    { label: "Achievements", value: `${challengesCompleted}`, icon: <Trophy size={40} className="text-slate-900 drop-shadow-[2px_2px_0px_#fff]" />, bg: "bg-brand-yellow" }
-  ];
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting('Good morning');
+    else if (hour < 18) setGreeting('Good afternoon');
+    else if (hour < 22) setGreeting('Good evening');
+    else setGreeting('Good night');
+  }, []);
 
-  const nextGoal = () => setCurrentGoalIndex((prev) => (prev + 1) % goals.length);
-  const prevGoal = () => setCurrentGoalIndex((prev) => (prev - 1 + goals.length) % goals.length);
+  const generateMainChartData = () => {
+    const today = new Date();
+    
+    if (progressView === 'Week') {
+      const startOfWeek = getMonday(today);
+      const days = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+      return days.map((dayLabel, index) => {
+        const currentDate = new Date(startOfWeek);
+        currentDate.setDate(startOfWeek.getDate() + index);
+        const distance = getDistanceForDate(currentDate, activityHistory);
+        return { label: dayLabel, value: distance, active: distance > 0 };
+      });
+    } else {
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      const numDays = lastDayOfMonth.getDate();
+      
+      const weeksData = [];
+      let currentWeekDist = 0;
+      let weekCounter = 1;
+      
+      for (let i = 1; i <= numDays; i++) {
+        const d = new Date(today.getFullYear(), today.getMonth(), i);
+        currentWeekDist += getDistanceForDate(d, activityHistory);
+        
+        if (d.getDay() === 0 || i === numDays) {
+          weeksData.push({ label: `W${weekCounter}`, value: currentWeekDist, active: currentWeekDist > 0 });
+          weekCounter++;
+          currentWeekDist = 0;
+        }
+      }
+      return weeksData;
+    }
+  };
+
+  const chartData = generateMainChartData();
+  const maxChartVal = Math.max(...chartData.map(d => d.value), 10);
+  const yAxisSteps = [maxChartVal, (maxChartVal * 2/3), (maxChartVal * 1/3), 0].map(v => Math.ceil(v));
+
+  const changeBaseDate = (direction: 1 | -1) => {
+    const newDate = new Date(baseDate);
+    if (calendarView === 'Week') {
+      newDate.setDate(baseDate.getDate() + (direction * 7));
+    } else {
+      newDate.setMonth(baseDate.getMonth() + direction);
+    }
+    setBaseDate(newDate);
+    setSelectedDate(null);
+  };
+
+  const getModalWeekData = () => {
+    const startOfWeek = getMonday(baseDate);
+    const days = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+    return days.map((dayLabel, index) => {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + index);
+      return { 
+        dateObj: d, 
+        label: dayLabel, 
+        dateNum: d.getDate(),
+        distance: getDistanceForDate(d, activityHistory)
+      };
+    });
+  };
+
+  const getModalMonthData = () => {
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    
+    let firstDayIndex = firstDay.getDay() - 1;
+    if (firstDayIndex === -1) firstDayIndex = 6;
+    
+    const days = [];
+    for (let i = 0; i < firstDayIndex; i++) days.push(null);
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      const d = new Date(year, month, i);
+      days.push({
+        dateObj: d,
+        dateNum: i,
+        distance: getDistanceForDate(d, activityHistory)
+      });
+    }
+    return days;
+  };
+
+  const displayName = user?.email?.split('@')[0] || 'Explorer';
+  const capitalizedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+
+  const selectedDateHistory = selectedDate 
+    ? activityHistory.filter(h => isSameDay(new Date(h.date), selectedDate)).reverse()
+    : [];
 
   return (
-    <div className="h-full w-full bg-brand-cream p-4 md:p-8 font-sans pb-32 overflow-y-auto">
+    <div className="h-full w-full p-4 md:p-8 pb-32 overflow-y-auto relative">
       
-      {/* Motivational Quote */}
-      <div className="mb-8 mt-4">
-        <h2 className="text-5xl font-black text-slate-900 leading-tight uppercase tracking-tighter drop-shadow-[2px_2px_0px_#fff]">
-          Step into a<br/>
-          <span className="italic font-black text-brand-green">greener tomorrow.</span>
-        </h2>
-      </div>
+      {/* 3D Ethereal Floating Tree Illusion Component (Abstract representation) */}
+      <div className="absolute top-20 right-0 w-64 h-64 bg-[var(--color-pastel-yellow)] rounded-full mix-blend-overlay filter blur-3xl opacity-60 animate-pulse pointer-events-none"></div>
+      <div className="absolute bottom-40 left-[-2rem] w-80 h-80 bg-[var(--color-soft-green-2)] rounded-full mix-blend-overlay filter blur-3xl opacity-40 pointer-events-none"></div>
 
-      {/* Search Bar */}
-      <div className="relative mb-8">
-        <input 
-          type="text" 
-          placeholder="Search activities, locations..." 
-          className="w-full bg-white border-comic rounded-3xl py-4 pl-12 pr-4 font-bold text-slate-900 shadow-comic focus:outline-none focus:translate-y-[2px] focus:shadow-none transition-all"
-        />
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-      </div>
-
-      {/* Goal Crusher (Single View Carousel) */}
-      <div className="mb-8 mt-10">
-        <div className="flex justify-between items-end mb-4">
-          <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight drop-shadow-[1px_1px_0px_#fff]">Goal Crusher</h3>
-          <div className="flex gap-2">
-            <button onClick={prevGoal} className="w-10 h-10 rounded-full border-comic shadow-[2px_2px_0px_0px_#0f172a] bg-white flex items-center justify-center hover:bg-slate-100 active:translate-y-[2px] active:shadow-none transition-all">
-              <ChevronLeft size={24} />
-            </button>
-            <button onClick={nextGoal} className="w-10 h-10 rounded-full border-comic shadow-[2px_2px_0px_0px_#0f172a] bg-white flex items-center justify-center hover:bg-slate-100 active:translate-y-[2px] active:shadow-none transition-all">
-              <ChevronRight size={24} />
-            </button>
+      {/* Top Header */}
+      <div className="flex justify-between items-center mb-8 mt-2 relative z-50">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full glass-card p-1 flex items-center justify-center">
+            <img 
+              src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=transparent" 
+              alt="Profile" 
+              className="w-full h-full object-cover rounded-full bg-white/30 backdrop-blur-sm"
+            />
+          </div>
+          <div>
+            <p className="text-sm text-[var(--color-text-muted)] font-bold tracking-wide">{greeting}</p>
+            <p className="text-2xl font-black text-[var(--color-text-main)] tracking-wide">{capitalizedName}</p>
           </div>
         </div>
         
-        <div className={`w-full ${goals[currentGoalIndex].bg} border-comic rounded-3xl p-6 relative overflow-hidden h-48 flex flex-col justify-between shadow-comic transition-colors`}>
-          <div>
-            <p className="text-sm font-black text-slate-800 uppercase tracking-wide">{goals[currentGoalIndex].label}</p>
-            <p className="text-5xl font-black text-slate-900 mt-2">{goals[currentGoalIndex].value}</p>
+        <div className="relative">
+          <button 
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="w-14 h-14 glass-card rounded-full flex items-center justify-center relative transition-transform hover:-translate-y-1 active:translate-y-0"
+          >
+            <Bell className="text-[var(--color-text-main)]" size={24} />
+            <div className="absolute top-3 right-3 w-3 h-3 bg-[var(--color-teal-dark)] rounded-full border-2 border-white shadow-sm"></div>
+          </button>
+
+          {showNotifications && (
+            <div className="absolute right-0 top-16 w-72 glass-card p-5 z-50 animate-in fade-in slide-in-from-top-2">
+              <h3 className="font-black text-[var(--color-text-main)] mb-3">Alerts</h3>
+              <div className="space-y-3">
+                <div className="p-4 glass-active rounded-2xl flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[var(--color-teal-dark)] flex-shrink-0 flex items-center justify-center text-white font-bold text-xs shadow-sm">🏆</div>
+                  <div>
+                    <p className="text-sm font-bold text-[var(--color-text-main)]">New Achievement!</p>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-1 font-semibold">You just hit a 5-day streak.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Goal Crusher - Main Progress Card */}
+      <div className="mb-6 relative z-10">
+        <div 
+          onClick={() => {
+            setBaseDate(new Date());
+            setSelectedDate(null);
+            setShowCalendar(true);
+          }}
+          className="glass-card p-7 cursor-pointer hover:-translate-y-1 transition-all"
+        >
+          <div className="flex justify-between items-center mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 glass-active rounded-full flex items-center justify-center shadow-sm">
+                <Activity size={20} className="text-[var(--color-teal-dark)]" />
+              </div>
+              <h3 className="text-2xl font-black tracking-wide text-[var(--color-text-main)]">Goal Crusher</h3>
+            </div>
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                setProgressView(progressView === 'Week' ? 'Month' : 'Week');
+              }}
+              className="flex items-center gap-2 glass-active px-5 py-2.5 rounded-full text-sm font-bold transition-colors shadow-sm text-[var(--color-text-main)]"
+            >
+              {progressView} <ChevronDown size={16} />
+            </div>
           </div>
-          <div className="absolute right-4 bottom-4 bg-white/50 p-4 rounded-full border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a]">
-            {goals[currentGoalIndex].icon}
+
+          <div className="h-44 flex items-end justify-between gap-2 md:gap-4 relative pt-6 pointer-events-none">
+            <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[11px] text-[var(--color-text-muted)] pb-8 pr-2 font-bold">
+              {yAxisSteps.map((step, i) => (
+                <span key={i}>{step}km</span>
+              ))}
+            </div>
+
+            <div className="flex-1 flex justify-between items-end h-full pl-10">
+              {chartData.map((data, index) => (
+                <div key={index} className="flex flex-col items-center gap-3 h-full justify-end w-full group">
+                  <div className="w-full max-w-[2rem] bg-white/20 rounded-full h-full relative overflow-hidden flex items-end border-2 border-[var(--color-text-main)]">
+                    <div 
+                      className={`w-full rounded-full transition-all duration-700 ease-out ${data.active ? 'bg-[var(--color-teal-dark)] shadow-[0_0_10px_rgba(84,150,162,0.4)]' : 'bg-transparent'}`}
+                      style={{ height: `${(data.value / maxChartVal) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-[var(--color-text-muted)]">{data.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Activity History */}
-      <div className="mt-8">
-        <div className="flex justify-between items-end mb-4">
-          <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight drop-shadow-[1px_1px_0px_#fff]">Recent Activities</h3>
-          <button className="text-sm font-bold text-slate-500 hover:text-slate-900 uppercase tracking-wide">View all</button>
+      {/* Secondary Cards */}
+      <div className="grid grid-cols-2 gap-4 mb-8 relative z-10">
+        <div className="glass-card p-6 relative group cursor-pointer hover:-translate-y-1 transition-all">
+          <div className="absolute top-5 right-5 w-10 h-10 glass-active rounded-full flex items-center justify-center transition-colors">
+            <ChevronRight size={20} className="text-[var(--color-teal-dark)]" />
+          </div>
+          <p className="text-sm font-bold text-[var(--color-text-muted)] mb-2">Active Streak</p>
+          <div className="flex items-baseline gap-1">
+            <span className="text-4xl font-black text-[var(--color-text-main)] drop-shadow-sm">{streaks}</span>
+            <span className="text-sm font-bold text-[var(--color-text-muted)]">days</span>
+          </div>
         </div>
 
+        <div className="glass-card p-6 relative group cursor-pointer hover:-translate-y-1 transition-all">
+          <div className="absolute top-5 right-5 w-10 h-10 glass-active rounded-full flex items-center justify-center transition-colors">
+            <ChevronRight size={20} className="text-[var(--color-teal-dark)]" />
+          </div>
+          <p className="text-sm font-bold text-[var(--color-text-muted)] mb-2">Carbon Saved</p>
+          <div className="flex items-baseline gap-1">
+            <span className="text-4xl font-black text-[var(--color-text-main)] drop-shadow-sm">{totalCarbonSaved.toFixed(1)}</span>
+            <span className="text-sm font-bold text-[var(--color-text-muted)]">kg</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Activity History Snapshot */}
+      <div className="relative z-10">
+        <h3 className="text-2xl font-black text-[var(--color-text-main)] mb-5 tracking-wide">Recent Activity</h3>
         <div className="space-y-4">
-          
-          <div className="bg-white border-comic rounded-3xl p-5 flex items-center justify-between hover:bg-slate-50 transition-colors shadow-comic-hover cursor-pointer active:translate-y-[2px] active:shadow-none">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full border-2 border-slate-900 flex items-center justify-center bg-brand-pink shadow-[2px_2px_0px_0px_#0f172a]">
-                <Activity size={24} className="text-slate-900" />
-              </div>
-              <div>
-                <p className="font-black text-slate-900 text-xl uppercase tracking-tight">Ran</p>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Today</p>
-              </div>
+          {activityHistory.slice(-2).reverse().map((trip, idx) => (
+             <div key={idx} className="glass-card p-5 flex items-center justify-between cursor-pointer hover:-translate-y-1 transition-all">
+             <div className="flex items-center gap-5">
+               <div className="w-16 h-16 rounded-[1.5rem] glass-active flex items-center justify-center shadow-sm">
+                 <MapIcon size={28} className="text-[var(--color-teal-dark)]" />
+               </div>
+               <div>
+                 <p className="font-black text-[var(--color-text-main)] text-lg">Walking Session</p>
+                 <div className="flex gap-5 mt-1">
+                   <div>
+                     <p className="text-[11px] text-[var(--color-text-muted)] uppercase font-bold tracking-wider">Distance</p>
+                     <p className="text-sm font-black text-[var(--color-teal-dark)]">{trip.distance.toFixed(1)} km</p>
+                   </div>
+                   <div>
+                     <p className="text-[11px] text-[var(--color-text-muted)] uppercase font-bold tracking-wider">Date</p>
+                     <p className="text-sm font-bold text-[var(--color-text-main)]">{new Date(trip.date).toLocaleDateString()}</p>
+                   </div>
+                 </div>
+               </div>
+             </div>
+           </div>
+          ))}
+          {activityHistory.length === 0 && (
+            <div className="glass-card p-6 flex justify-center">
+              <p className="text-[var(--color-text-muted)] font-bold text-center">No logs found. Start walking!</p>
             </div>
-            <div className="text-right">
-              <p className="font-black text-brand-green text-xl">8.8 km</p>
-              <p className="text-xs text-slate-500 font-bold mt-1">45:32</p>
-            </div>
-          </div>
-
-          <div className="bg-white border-comic rounded-3xl p-5 flex items-center justify-between hover:bg-slate-50 transition-colors shadow-comic-hover cursor-pointer active:translate-y-[2px] active:shadow-none">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full border-2 border-slate-900 flex items-center justify-center bg-brand-blue shadow-[2px_2px_0px_0px_#0f172a]">
-                <MapIcon size={24} className="text-slate-900" />
-              </div>
-              <div>
-                <p className="font-black text-slate-900 text-xl uppercase tracking-tight">Cycle</p>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">Yesterday</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="font-black text-brand-green text-xl">24.5 km</p>
-              <p className="text-xs text-slate-500 font-bold mt-1">1:12:15</p>
-            </div>
-          </div>
-
+          )}
         </div>
       </div>
+
+      {/* Interactive Calendar Modal */}
+      {showCalendar && (
+        <div className="fixed inset-0 z-[120] bg-[var(--color-teal-dark)]/20 backdrop-blur-xl flex flex-col items-center justify-end md:justify-center animate-in fade-in duration-300">
+          
+          <div className="w-full max-w-md glass-card rounded-b-none md:rounded-b-[24px] h-[85vh] md:h-auto md:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-full md:slide-in-from-bottom-10">
+            <div className="flex justify-between items-center p-8 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 glass-active rounded-full flex items-center justify-center shadow-sm">
+                  <CalendarIcon size={24} className="text-[var(--color-teal-dark)]" />
+                </div>
+                <h2 className="text-2xl font-black text-[var(--color-text-main)]">Time Log</h2>
+              </div>
+              <button 
+                onClick={() => setShowCalendar(false)}
+                className="w-12 h-12 glass-active rounded-full flex items-center justify-center hover:scale-105 transition-transform"
+              >
+                <X size={24} className="text-[var(--color-text-main)]" />
+              </button>
+            </div>
+
+            <div className="p-8 pt-4 flex-1 overflow-y-auto">
+              {/* View Toggle */}
+              <div className="flex gap-2 mb-8 glass-active p-1.5 rounded-full w-full mx-auto shadow-inner">
+                <button 
+                  onClick={() => { setCalendarView('Week'); setSelectedDate(null); }}
+                  className={`flex-1 py-3 rounded-full font-bold text-sm transition-all ${calendarView === 'Week' ? 'glass-card shadow-sm text-[var(--color-text-main)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]'}`}
+                >
+                  Weekly
+                </button>
+                <button 
+                  onClick={() => { setCalendarView('Month'); setSelectedDate(null); }}
+                  className={`flex-1 py-3 rounded-full font-bold text-sm transition-all ${calendarView === 'Month' ? 'glass-card shadow-sm text-[var(--color-text-main)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]'}`}
+                >
+                  Monthly
+                </button>
+              </div>
+
+              {/* Calendar Controls */}
+              <div className="flex justify-between items-center mb-8">
+                <button onClick={() => changeBaseDate(-1)} className="w-10 h-10 flex items-center justify-center glass-active rounded-full text-[var(--color-text-main)] hover:scale-105 transition-all"><ChevronLeft size={20}/></button>
+                <span className="font-black text-xl text-[var(--color-text-main)] tracking-wide">
+                  {calendarView === 'Week' 
+                    ? `Week of ${getMonday(baseDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                    : baseDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+                  }
+                </span>
+                <button onClick={() => changeBaseDate(1)} className="w-10 h-10 flex items-center justify-center glass-active rounded-full text-[var(--color-text-main)] hover:scale-105 transition-all"><ChevronRight size={20}/></button>
+              </div>
+
+              {/* Calendar View Area */}
+              {calendarView === 'Week' ? (
+                <div className="flex justify-between mb-8">
+                  {getModalWeekData().map((d, i) => {
+                    const isActive = d.distance > 0;
+                    const isSelected = selectedDate && isSameDay(selectedDate, d.dateObj);
+                    
+                    return (
+                      <div key={i} className="flex flex-col items-center gap-3">
+                        <span className="text-xs font-bold text-[var(--color-text-muted)]">{d.label}</span>
+                        <button 
+                          onClick={() => setSelectedDate(d.dateObj)}
+                          className={`w-12 h-[4.5rem] rounded-[1.5rem] flex flex-col items-center justify-center gap-1 transition-all
+                            ${isActive ? 'bg-[var(--color-teal-dark)] text-white shadow-sm hover:-translate-y-1' : 'glass-active text-[var(--color-text-main)] hover:scale-105'}
+                            ${isSelected ? 'ring-4 ring-[var(--color-teal-dark)] ring-opacity-40' : ''}
+                          `}
+                        >
+                          <span className="text-lg font-black">{d.dateNum}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mb-8">
+                  <div className="grid grid-cols-7 gap-2 text-center mb-4">
+                    {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(d => (
+                      <span key={d} className="text-xs font-bold text-[var(--color-text-muted)]">{d}</span>
+                    ))}
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-3">
+                    {getModalMonthData().map((dayData, i) => {
+                      if (!dayData) return <div key={i} className="aspect-square"></div>;
+                      
+                      const isActive = dayData.distance > 0;
+                      const isSelected = selectedDate && isSameDay(selectedDate, dayData.dateObj);
+                      
+                      return (
+                        <button 
+                          key={i} 
+                          onClick={() => setSelectedDate(dayData.dateObj)}
+                          className={`aspect-square rounded-full flex flex-col items-center justify-center relative transition-all
+                            ${isActive ? 'bg-[var(--color-teal-dark)] text-white shadow-sm hover:scale-105' : 'glass-active text-[var(--color-text-main)] hover:scale-105'}
+                            ${isSelected ? 'ring-4 ring-[var(--color-teal-dark)] ring-opacity-40 scale-105' : ''}
+                          `}
+                        >
+                          <span className="text-sm font-black">{dayData.dateNum}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Selected Date History List */}
+              <div className="mt-8">
+                {selectedDate ? (
+                  <>
+                    <h3 className="font-bold text-[var(--color-text-muted)] text-sm tracking-wide mb-4">
+                      {selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </h3>
+                    
+                    {selectedDateHistory.length > 0 ? (
+                      selectedDateHistory.map((activity, idx) => (
+                        <div key={idx} className="flex justify-between items-center py-4 glass-active rounded-[2rem] px-5 mb-3 shadow-sm">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-full bg-[var(--color-teal-dark)] flex items-center justify-center text-white shadow-sm">
+                              <MapIcon size={20} />
+                            </div>
+                            <span className="font-black text-[var(--color-text-main)] text-lg">Walk</span>
+                          </div>
+                          <span className="font-black text-[var(--color-teal-dark)] text-xl">+{activity.distance.toFixed(1)} km</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-10">
+                        <Activity size={48} className="mb-4 text-white/40" />
+                        <p className="font-bold text-[var(--color-text-muted)]">No activity on this date.</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <CalendarIcon size={48} className="mb-4 text-white/40" />
+                    <p className="font-bold text-[var(--color-text-muted)] text-center px-8">Select a date above to view your logs.</p>
+                  </div>
+                )}
+              </div>
+              
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

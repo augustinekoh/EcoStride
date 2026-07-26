@@ -81,26 +81,26 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
           <div 
             key={player.id} 
             onClick={() => handlePlayerClick(player)}
-            className="flex items-center gap-3 bg-white/80 backdrop-blur-md p-3 rounded-2xl border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] cursor-pointer hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#0f172a] transition-all"
+            className="flex items-center gap-3 glass-active p-3 rounded-2xl border border-white/50 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-md transition-all"
           >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-slate-900 border-2 border-slate-900 bg-brand-yellow">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-slate-900 bg-[var(--color-pastel-yellow)] shadow-sm">
               {idx + 1}
             </div>
-            <div className="w-12 h-12 rounded-full border-2 border-slate-900 bg-slate-100 flex items-center justify-center text-2xl">
+            <div className="w-12 h-12 rounded-full border border-white/60 bg-white/50 flex items-center justify-center text-2xl shadow-sm">
               {player.avatar}
             </div>
             <div className="flex-1 overflow-hidden">
-              <h3 className="font-bold text-slate-900 flex items-center gap-2 truncate">
+              <h3 className="font-bold text-[var(--color-text-main)] flex items-center gap-2 truncate">
                 {player.name}
-                {player.isRisingStar && activeTab === 'weekly' && <span className="bg-brand-orange text-white text-[10px] px-1.5 py-0.5 rounded-full uppercase shrink-0">Rising</span>}
+                {player.isRisingStar && activeTab === 'weekly' && <span className="bg-orange-400 text-white text-[10px] px-1.5 py-0.5 rounded-full uppercase shrink-0">Rising</span>}
               </h3>
-              <p className="text-xs font-bold text-slate-500 truncate">{player.guildName}</p>
+              <p className="text-xs font-bold text-[var(--color-text-muted)] truncate">{player.guildName}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-black text-brand-green text-lg">
+              <p className="font-black text-[var(--color-teal-dark)] text-lg">
                 {activeTab === 'weekly' ? player.weeklyPoints : activeTab === 'monthly' ? player.monthlyPoints : player.totalMileageKm}
               </p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">
+              <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase">
                 {activeTab === 'total' ? 'KM' : 'PTS'}
               </p>
             </div>
@@ -120,26 +120,26 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
     return (
       <div className="space-y-4">
         {sampleGuilds.map((guild, index) => (
-          <div key={guild.id} className="bg-slate-700/50 rounded-2xl p-4 flex items-center border-2 border-slate-700 hover:border-brand-green transition-colors cursor-pointer">
-            <div className="w-12 text-center text-xl font-black text-brand-yellow">
+          <div key={guild.id} className="glass-active rounded-2xl p-4 flex items-center border border-white/40 hover:border-white/80 shadow-sm transition-colors cursor-pointer">
+            <div className="w-12 text-center text-xl font-black text-[var(--color-teal-dark)]">
               #{index + 1}
             </div>
-            <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-2xl border-2 border-slate-600 mr-4">
+            <div className="w-12 h-12 bg-white/40 rounded-xl flex items-center justify-center text-2xl shadow-inner mr-4">
               🛡️
             </div>
             <div className="flex-1">
-              <h4 className="font-bold text-white text-lg">{guild.name}</h4>
-              <p className="text-xs text-slate-400">{guild.members} Active Members</p>
+              <h4 className="font-bold text-[var(--color-text-main)] text-lg">{guild.name}</h4>
+              <p className="text-xs text-[var(--color-text-muted)]">{guild.members} Active Members</p>
             </div>
             <div className="text-right">
-              <div className="font-black text-brand-green text-xl flex items-center gap-1">
+              <div className="font-black text-[var(--color-teal-dark)] text-xl flex items-center justify-end gap-1">
                 {guild.treesPlanted} 🌳
               </div>
-              <div className="text-xs text-slate-400 font-bold uppercase">Trees Planted</div>
+              <div className="text-xs text-[var(--color-text-muted)] font-bold uppercase">Trees Planted</div>
             </div>
           </div>
         ))}
-        <div className="text-center text-sm font-bold text-slate-500 mt-4">
+        <div className="text-center text-sm font-bold text-[var(--color-text-muted)] mt-4">
           Guild system and territory wars are coming in the next update!
         </div>
       </div>
@@ -147,41 +147,41 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
-      <div className="bg-brand-cream border-4 border-slate-900 shadow-comic rounded-3xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-90 duration-300 relative">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--color-teal-dark)]/20 backdrop-blur-md px-4">
+      <div className="glass-card p-0 w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-90 duration-300 relative border border-white/50 shadow-xl">
         
-        <div className="bg-slate-900 p-4 flex justify-between items-center text-white shrink-0">
+        <div className="bg-white/40 backdrop-blur-md p-4 flex justify-between items-center text-[var(--color-text-main)] shrink-0 border-b border-white/30">
           <div className="flex items-center gap-2">
-            <Trophy className="text-brand-yellow" size={24} />
-            <h2 className="text-xl font-black uppercase tracking-wider text-brand-yellow">Leaderboards</h2>
+            <Trophy className="text-[var(--color-teal-dark)]" size={24} />
+            <h2 className="text-xl font-black uppercase tracking-wider text-[var(--color-text-main)]">Leaderboards</h2>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-slate-700 rounded-full transition-colors">
+          <button onClick={onClose} className="p-1 hover:bg-white/50 rounded-full transition-colors text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]">
             <X size={24} />
           </button>
         </div>
 
-        <div className="flex p-2 bg-slate-800 gap-1 overflow-x-auto no-scrollbar shrink-0">
+        <div className="flex p-2 bg-white/20 backdrop-blur-sm gap-1 overflow-x-auto no-scrollbar shrink-0 border-b border-white/20 shadow-inner">
           <button 
             onClick={() => setActiveTab('weekly')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeTab === 'weekly' ? 'bg-brand-green text-slate-900' : 'text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors shadow-sm border border-white/40 ${activeTab === 'weekly' ? 'bg-[var(--color-teal-dark)] text-white' : 'bg-white/50 text-[var(--color-text-muted)] hover:bg-white/80'}`}
           >
             <TrendingUp size={14} /> Weekly
           </button>
           <button 
             onClick={() => setActiveTab('monthly')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeTab === 'monthly' ? 'bg-brand-yellow text-slate-900' : 'text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors shadow-sm border border-white/40 ${activeTab === 'monthly' ? 'bg-[var(--color-teal-dark)] text-white' : 'bg-white/50 text-[var(--color-text-muted)] hover:bg-white/80'}`}
           >
             <Calendar size={14} /> Monthly Coins
           </button>
           <button 
             onClick={() => setActiveTab('total')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeTab === 'total' ? 'bg-brand-green text-slate-900' : 'text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors shadow-sm border border-white/40 ${activeTab === 'total' ? 'bg-[var(--color-teal-dark)] text-white' : 'bg-white/50 text-[var(--color-text-muted)] hover:bg-white/80'}`}
           >
             <MapIcon size={14} /> Total Distance
           </button>
           <button 
             onClick={() => setActiveTab('guild')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeTab === 'guild' ? 'bg-brand-pink text-slate-900' : 'text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors shadow-sm border border-white/40 ${activeTab === 'guild' ? 'bg-[var(--color-teal-dark)] text-white' : 'bg-white/50 text-[var(--color-text-muted)] hover:bg-white/80'}`}
           >
             <Shield size={14} /> Guild Trees
           </button>

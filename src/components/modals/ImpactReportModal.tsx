@@ -8,7 +8,7 @@ import merchantsData from '../../mock/merchants.json';
 
 export const ImpactReportModal: React.FC = () => {
   const { showReportModal, setShowReportModal, setProgress, completedDistanceKm } = useDemoStore();
-  const { addCoins, addCarbonSaved } = useUserStore();
+  const { addCoins, addCarbonSaved, addActivity } = useUserStore();
   
   const [stats, setStats] = useState({ distance: 0, carbon: 0, coins: 0 });
 
@@ -30,6 +30,7 @@ export const ImpactReportModal: React.FC = () => {
       // Optimistic local update
       addCoins(coins);
       addCarbonSaved(carbon);
+      addActivity(dist);
 
       // Persist to Firestore
       if (auth.currentUser) {

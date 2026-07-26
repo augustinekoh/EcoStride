@@ -105,13 +105,13 @@ export const AuthModal: React.FC = () => {
   if (isWaitingForApproval) {
     if (demoRequestRejected) {
       return (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-brand-cream border-comic rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_#0f172a] flex flex-col items-center">
-            <h2 className="text-3xl font-black text-center mb-4 uppercase tracking-tight drop-shadow-[2px_2px_0px_#0f172a] text-red-500">
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-teal-dark)]/20 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="glass-card p-8 max-w-sm w-full flex flex-col items-center border-red-400/50">
+            <h2 className="text-3xl font-black text-center mb-4 uppercase tracking-tight text-red-500 drop-shadow-sm">
               Access Denied
             </h2>
             <div className="text-5xl mb-6">❌</div>
-            <p className="text-center font-bold text-slate-700 mb-6">
+            <p className="text-center font-bold text-[var(--color-text-main)] mb-6">
               Your demo access request was rejected by the admin.
             </p>
             <button 
@@ -125,7 +125,7 @@ export const AuthModal: React.FC = () => {
                 auth.signOut();
                 window.location.reload();
               }}
-              className="bg-red-500 text-white font-black px-6 py-3 rounded-xl border-2 border-slate-900 shadow-comic w-full hover:-translate-y-1 transition-transform"
+              className="glass-active text-red-500 font-black px-6 py-3 rounded-xl w-full hover:-translate-y-1 transition-transform border border-red-400/30 shadow-sm"
             >
               TRY AGAIN
             </button>
@@ -135,13 +135,13 @@ export const AuthModal: React.FC = () => {
     }
 
     return (
-      <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div className="bg-brand-cream border-comic rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_#0f172a] flex flex-col items-center">
-          <h2 className="text-3xl font-black text-center mb-4 uppercase tracking-tight drop-shadow-[2px_2px_0px_#0f172a] text-brand-yellow">
+      <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-teal-dark)]/20 backdrop-blur-md p-4 animate-in fade-in">
+        <div className="glass-card p-8 max-w-sm w-full flex flex-col items-center">
+          <h2 className="text-3xl font-black text-center mb-4 uppercase tracking-tight text-[var(--color-text-main)] drop-shadow-sm">
             Waiting for Admin
           </h2>
           <div className="animate-spin text-5xl mb-6">⏳</div>
-          <p className="text-center font-bold text-slate-700">
+          <p className="text-center font-bold text-[var(--color-text-main)]">
             Your demo access request has been sent to the Admin Dashboard. Please wait for approval to enter Demo Mode.
           </p>
         </div>
@@ -150,46 +150,46 @@ export const AuthModal: React.FC = () => {
   }
 
   return (
-    <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-brand-cream border-comic rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_#0f172a]">
-        <h2 className="text-3xl font-black text-center mb-2 uppercase tracking-tight drop-shadow-[2px_2px_0px_#0f172a] text-brand-green">
+    <div className="absolute inset-0 z-[100] flex items-center justify-center bg-[var(--color-teal-dark)]/20 backdrop-blur-md p-4 animate-in fade-in">
+      <div className="glass-card p-8 max-w-sm w-full">
+        <h2 className="text-3xl font-black text-center mb-2 uppercase tracking-tight text-[var(--color-text-main)] drop-shadow-sm">
           {isLogin ? 'Welcome Back' : 'Join EcoStride'}
         </h2>
-        <p className="text-center font-bold text-slate-500 mb-6">
+        <p className="text-center font-bold text-[var(--color-text-muted)] mb-6">
           {isLogin ? 'Login to continue your green quest' : 'Register to start earning rewards'}
         </p>
 
-        {error && <div className="bg-red-100 border-2 border-red-500 text-red-700 p-2 rounded-xl mb-4 text-sm font-bold">{error}</div>}
+        {error && <div className="glass-active border-red-400/50 text-red-600 p-3 rounded-xl mb-4 text-sm font-bold shadow-sm">{error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block font-bold text-sm mb-1">Email</label>
+            <label className="block font-bold text-sm mb-1 text-[var(--color-text-main)]">Email</label>
             <input 
               type="email" 
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border-2 border-slate-900 rounded-xl px-4 py-2 font-bold focus:outline-none focus:ring-4 focus:ring-brand-yellow/50" 
+              className="w-full glass-active rounded-xl px-4 py-3 font-bold text-[var(--color-text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--color-teal-dark)]/50 transition-all border border-white/40" 
             />
           </div>
           <div>
-            <label className="block font-bold text-sm mb-1">Password</label>
+            <label className="block font-bold text-sm mb-1 text-[var(--color-text-main)]">Password</label>
             <input 
               type="password" 
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border-2 border-slate-900 rounded-xl px-4 py-2 font-bold focus:outline-none focus:ring-4 focus:ring-brand-yellow/50" 
+              className="w-full glass-active rounded-xl px-4 py-3 font-bold text-[var(--color-text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--color-teal-dark)]/50 transition-all border border-white/40" 
             />
           </div>
 
           {!isLogin && (
             <div>
-              <label className="block font-bold text-sm mb-1">Select Role</label>
+              <label className="block font-bold text-sm mb-1 text-[var(--color-text-main)]">Select Role</label>
               <select 
                 value={role} 
                 onChange={(e) => setRole(e.target.value as any)}
-                className="w-full border-2 border-slate-900 rounded-xl px-4 py-2 font-bold bg-white"
+                className="w-full glass-active rounded-xl px-4 py-3 font-bold text-[var(--color-text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--color-teal-dark)]/50 transition-all border border-white/40"
               >
                 <option value="user">🚴 Green Rider (User)</option>
                 <option value="merchant">🏪 Store Owner (Merchant)</option>
@@ -199,7 +199,7 @@ export const AuthModal: React.FC = () => {
 
           <button 
             type="submit"
-            className="w-full bg-brand-yellow hover:bg-yellow-300 border-2 border-slate-900 py-3 rounded-full font-black uppercase tracking-wide shadow-comic-hover active:translate-y-1 active:shadow-none transition-all mt-4"
+            className="w-full bg-[var(--color-teal-dark)] text-white py-3.5 rounded-full font-black uppercase tracking-wide shadow-md hover:-translate-y-1 hover:shadow-lg active:translate-y-0 transition-all mt-6 border border-white/20"
           >
             {isLogin ? 'Login' : 'Register'}
           </button>
@@ -208,7 +208,7 @@ export const AuthModal: React.FC = () => {
         <div className="mt-6 text-center">
           <button 
             onClick={() => setIsLogin(!isLogin)}
-            className="text-sm font-bold text-slate-500 hover:text-slate-900 underline underline-offset-4 decoration-2"
+            className="text-sm font-bold text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] underline underline-offset-4 decoration-2 transition-colors"
           >
             {isLogin ? 'Need an account? Register' : 'Already have an account? Login'}
           </button>

@@ -335,30 +335,30 @@ export const MapView: React.FC = () => {
       {true && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 w-11/12 max-w-sm">
           <div className="relative">
-            <form onSubmit={handleUserSearch} className="flex gap-2 bg-white p-1.5 rounded-full border-2 border-slate-900 shadow-comic transition-all focus-within:-translate-y-1 relative z-50">
+            <form onSubmit={handleUserSearch} className="flex gap-2 glass-card p-1.5 rounded-full border border-white/50 shadow-sm transition-all focus-within:-translate-y-1 relative z-50">
               <input 
                 type="text" 
                 placeholder="Search destination..." 
-                className="flex-1 bg-transparent px-4 font-bold text-slate-900 focus:outline-none"
+                className="flex-1 bg-transparent px-4 font-bold text-[var(--color-text-main)] placeholder-[var(--color-text-muted)] focus:outline-none"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <button type="submit" className="bg-brand-green p-2 rounded-full border-2 border-slate-900 hover:bg-green-400">
+              <button type="submit" className="bg-[var(--color-teal-dark)] text-white p-2 rounded-full hover:bg-[var(--color-teal-mid)] shadow-sm transition-colors">
                 {isSearching ? '⏳' : '🔍'}
               </button>
             </form>
             
             {/* Autocomplete Dropdown */}
             {searchResults.length > 0 && (
-              <div className="absolute top-12 left-0 w-full bg-white border-2 border-slate-900 shadow-comic rounded-2xl mt-2 overflow-hidden z-40 flex flex-col animate-in slide-in-from-top-2">
+              <div className="absolute top-12 left-0 w-full glass-card border border-white/50 shadow-md rounded-2xl mt-2 overflow-hidden z-40 flex flex-col animate-in slide-in-from-top-2">
                 {searchResults.map((feature, index) => (
                   <button
                     key={feature.id || index}
                     onClick={() => handleSelectSearchResult(feature)}
-                    className="flex flex-col text-left px-4 py-3 hover:bg-slate-100 border-b border-slate-200 last:border-b-0 transition-colors"
+                    className="flex flex-col text-left px-4 py-3 hover:bg-white/30 border-b border-white/20 last:border-b-0 transition-colors"
                   >
-                    <span className="font-bold text-slate-900 truncate">{feature.text}</span>
-                    <span className="text-xs text-slate-500 truncate">{feature.place_name}</span>
+                    <span className="font-bold text-[var(--color-text-main)] truncate">{feature.text}</span>
+                    <span className="text-xs text-[var(--color-text-muted)] truncate">{feature.place_name}</span>
                   </button>
                 ))}
               </div>
@@ -392,7 +392,7 @@ export const MapView: React.FC = () => {
             id="territory-outline"
             type="line"
             paint={{
-              'line-color': '#0f172a',
+              'line-color': '#7FCA9C',
               'line-width': 3,
               'line-dasharray': [2, 2]
             }}
@@ -405,7 +405,7 @@ export const MapView: React.FC = () => {
             id="route-bg-line"
             type="line"
             paint={{
-              'line-color': '#94a3b8',
+              'line-color': '#CCE3C5',
               'line-width': 4,
               'line-dasharray': [1, 2]
             }}
@@ -419,7 +419,7 @@ export const MapView: React.FC = () => {
               id="route-active-line"
               type="line"
               paint={{
-                'line-color': '#86efac',
+                'line-color': '#99D2A9',
                 'line-width': 8
               }}
               layout={{
@@ -431,9 +431,9 @@ export const MapView: React.FC = () => {
               id="route-active-outline"
               type="line"
               paint={{
-                'line-color': '#0f172a',
+                'line-color': '#7FCA9C',
                 'line-width': 12,
-                'line-opacity': 0.3,
+                'line-opacity': 0.4,
               }}
               layout={{
                 'line-cap': 'round',
@@ -456,7 +456,7 @@ export const MapView: React.FC = () => {
               setActiveSignpost(sp);
             }}
           >
-            <div className="bg-white px-2 py-1 rounded-t-xl rounded-br-xl border-2 border-slate-900 shadow-comic cursor-pointer hover:-translate-y-1 transition-transform animate-in zoom-in-95 duration-200">
+            <div className="glass-active px-2 py-1 rounded-t-xl rounded-br-xl border border-white/50 shadow-sm cursor-pointer hover:-translate-y-1 transition-transform animate-in zoom-in-95 duration-200">
               <span className="text-xl">{sp.emoji}</span>
             </div>
           </Marker>
@@ -473,19 +473,19 @@ export const MapView: React.FC = () => {
             className="z-50"
             offset={[0, -40]}
           >
-            <div className="bg-white border-2 border-slate-900 shadow-comic p-3 rounded-2xl flex flex-col gap-2 min-w-[200px]">
+            <div className="glass-card border border-white/50 shadow-md p-3 rounded-2xl flex flex-col gap-2 min-w-[200px]">
               <div className="flex items-center gap-2">
-                <span className="text-2xl bg-slate-100 p-1.5 rounded-xl border border-slate-300">{activeSignpost.emoji}</span>
+                <span className="text-2xl glass-active p-1.5 rounded-xl border border-white/40">{activeSignpost.emoji}</span>
                 <div className="flex-1">
-                  <p className="text-xs text-slate-500 font-bold truncate max-w-[120px]">{activeSignpost.authorEmail || 'Guest'}</p>
-                  <p className="text-sm font-black text-slate-900">{activeSignpost.message}</p>
+                  <p className="text-xs text-[var(--color-text-muted)] font-bold truncate max-w-[120px]">{activeSignpost.authorEmail || 'Guest'}</p>
+                  <p className="text-sm font-black text-[var(--color-text-main)]">{activeSignpost.message}</p>
                 </div>
               </div>
               <button 
                 onClick={(e) => handleLikeSignpost(e, activeSignpost)}
-                className="w-full bg-brand-yellow hover:bg-yellow-400 border-2 border-slate-900 rounded-xl py-1.5 font-bold text-slate-900 text-sm transition-colors flex items-center justify-center gap-1 active:scale-95"
+                className="w-full bg-[var(--color-teal-dark)] hover:bg-[var(--color-teal-mid)] border border-white/30 rounded-xl py-2 font-bold text-white text-sm transition-colors flex items-center justify-center gap-1 active:scale-95 shadow-sm"
               >
-                👍 +1 Eco Energy <span className="bg-white px-1.5 rounded-full border border-slate-900 text-xs ml-1 font-black">{activeSignpost.likes || 0}</span>
+                👍 +1 Eco Energy <span className="bg-white/30 px-1.5 rounded-full border border-white/40 text-xs ml-1 font-black">{activeSignpost.likes || 0}</span>
               </button>
             </div>
           </Popup>
@@ -503,11 +503,11 @@ export const MapView: React.FC = () => {
               handleMerchantClick(m);
             }}
           >
-            <div className={`w-10 h-10 rounded-full border-comic flex items-center justify-center text-xl cursor-pointer transition-colors ${selectedMerchant?.id === m.id ? 'bg-brand-orange animate-bounce' : 'bg-brand-yellow hover:bg-brand-green'}`}>
+            <div className={`w-10 h-10 rounded-full border border-white/60 flex items-center justify-center text-xl cursor-pointer transition-colors shadow-sm ${selectedMerchant?.id === m.id ? 'bg-[var(--color-pastel-yellow)] animate-bounce' : 'glass-active hover:bg-white/50'}`}>
               {m.icon || '🏪'}
             </div>
             {m.offers && (
-              <div className="absolute top-[-30px] left-1/2 -translate-x-1/2 whitespace-nowrap bg-brand-orange text-white text-xs font-bold px-2 py-1 rounded-full border border-slate-900 shadow-comic">
+              <div className="absolute top-[-30px] left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--color-teal-dark)] text-white text-xs font-bold px-2 py-1 rounded-full border border-white/40 shadow-sm">
                 {m.offers}
               </div>
             )}
@@ -535,7 +535,7 @@ export const MapView: React.FC = () => {
           >
             <div className="relative group cursor-pointer animate-in zoom-in-50 spring duration-500">
               <div className="text-4xl">🌳</div>
-              <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap bg-brand-green text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-full border border-slate-900 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap glass-active text-[var(--color-text-main)] text-[10px] font-black px-2 py-0.5 rounded-full border border-white/50 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
                 {tree.guildId}
               </div>
             </div>
@@ -601,15 +601,15 @@ export const MapView: React.FC = () => {
       <div className="absolute top-24 left-4 flex flex-col gap-4 z-[90]">
         <button 
           onClick={() => setShowLeaderboard(true)}
-          className="w-12 h-12 bg-white rounded-full border-2 border-slate-900 shadow-comic flex items-center justify-center hover:-translate-y-1 active:translate-y-1 active:shadow-none transition-all group"
+          className="w-12 h-12 glass-card rounded-full border border-white/50 shadow-sm flex items-center justify-center hover:-translate-y-1 hover:shadow-md active:translate-y-0 transition-all group"
         >
-          <Trophy size={20} className="text-brand-yellow group-hover:scale-110 transition-transform" />
+          <Trophy size={20} className="text-[var(--color-text-main)] group-hover:scale-110 transition-transform" />
         </button>
         <button 
           onClick={() => setShowMerchantModal(true)}
-          className="w-12 h-12 bg-white rounded-full border-2 border-slate-900 shadow-comic flex items-center justify-center hover:-translate-y-1 active:translate-y-1 active:shadow-none transition-all group"
+          className="w-12 h-12 glass-card rounded-full border border-white/50 shadow-sm flex items-center justify-center hover:-translate-y-1 hover:shadow-md active:translate-y-0 transition-all group"
         >
-          <Store size={20} className="text-brand-orange group-hover:scale-110 transition-transform" />
+          <Store size={20} className="text-[var(--color-text-main)] group-hover:scale-110 transition-transform" />
         </button>
       </div>
 
@@ -625,11 +625,11 @@ export const MapView: React.FC = () => {
                 setShowSignpostModal(true);
                 setIsFabOpen(false);
               }}
-              className="w-14 h-14 bg-brand-pink/90 backdrop-blur text-slate-900 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] rounded-full text-2xl flex items-center justify-center hover:scale-110 hover:-translate-y-1 transition-all active:scale-95"
+              className="w-14 h-14 glass-active border border-white/50 shadow-sm rounded-full text-2xl flex items-center justify-center hover:scale-110 hover:-translate-y-1 transition-all active:scale-95 text-[var(--color-text-main)]"
             >
               📍
             </button>
-            <div className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap bg-white/80 backdrop-blur-sm border border-white/50 text-[var(--color-text-main)] text-xs font-bold px-3 py-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
               Drop Signpost
             </div>
           </div>
@@ -641,13 +641,13 @@ export const MapView: React.FC = () => {
                 setIsPlantingMode(true);
                 setIsFabOpen(false);
               }}
-              className="w-14 h-14 bg-brand-green/90 backdrop-blur text-slate-900 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] rounded-full text-2xl flex items-center justify-center hover:scale-110 hover:-translate-y-1 transition-all active:scale-95"
+              className="w-14 h-14 glass-active border border-white/50 shadow-sm rounded-full text-2xl flex items-center justify-center hover:scale-110 hover:-translate-y-1 transition-all active:scale-95 text-[var(--color-text-main)]"
             >
               🌳
             </button>
-            <div className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded-full flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap bg-white/80 backdrop-blur-sm border border-white/50 text-[var(--color-text-main)] text-xs font-bold px-3 py-1.5 rounded-full flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
               <span>Plant Tree</span>
-              <span className="text-[10px] text-brand-yellow">100 Coins</span>
+              <span className="text-[10px] text-[var(--color-teal-dark)]">100 Coins</span>
             </div>
           </div>
         </div>
@@ -655,14 +655,14 @@ export const MapView: React.FC = () => {
         {/* Main Frosted Glass FAB with EcoStride Logo (Leaf) */}
         <button 
           onClick={() => setIsFabOpen(!isFabOpen)}
-          className={`w-16 h-16 rounded-full bg-white/80 backdrop-blur-md border-2 border-slate-900 flex items-center justify-center transition-all duration-300 hover:bg-white active:scale-95 z-10 relative ${isFabOpen ? 'shadow-[2px_2px_0px_0px_#0f172a] translate-y-1 translate-x-1' : 'shadow-[6px_6px_0px_0px_#0f172a]'}`}
+          className={`w-16 h-16 rounded-full glass-card border border-white/50 flex items-center justify-center transition-all duration-300 hover:bg-white/70 active:scale-95 z-10 relative ${isFabOpen ? 'shadow-md translate-y-1 translate-x-1' : 'shadow-lg'}`}
         >
-          <div className="w-12 h-12 rounded-full bg-brand-green border-2 border-slate-900 flex items-center justify-center text-slate-900 overflow-hidden relative">
+          <div className="w-12 h-12 rounded-full bg-[var(--color-teal-dark)] text-white shadow-sm flex items-center justify-center overflow-hidden relative">
             <div className={`absolute transition-all duration-300 ease-in-out ${isFabOpen ? 'scale-0 opacity-0 rotate-90' : 'scale-100 opacity-100 rotate-0'}`}>
-              <Leaf size={24} strokeWidth={2.5} className="fill-brand-green animate-pulse" />
+              <Leaf size={24} strokeWidth={2.5} className="fill-white animate-pulse" />
             </div>
             <div className={`absolute transition-all duration-300 ease-in-out ${isFabOpen ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-90'}`}>
-              <X size={26} strokeWidth={3} />
+              <X size={26} strokeWidth={3} className="text-white" />
             </div>
           </div>
         </button>
@@ -678,21 +678,21 @@ export const MapView: React.FC = () => {
 
       {/* Merchant Confirmation Overlay */}
       {selectedMerchant && !activeRouteData && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-white border-2 border-slate-900 shadow-comic px-8 py-6 rounded-3xl flex flex-col items-center gap-4 z-[110] w-80 text-center animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 glass-card border border-white/50 shadow-lg px-8 py-6 rounded-3xl flex flex-col items-center gap-4 z-[110] w-80 text-center animate-in slide-in-from-bottom-10 fade-in duration-300">
           <div>
-            <h3 className="text-2xl font-black text-slate-900">{selectedMerchant.storeName}</h3>
-            <p className="text-sm font-bold text-slate-500 mt-1">{selectedMerchant.category}</p>
+            <h3 className="text-2xl font-black text-[var(--color-text-main)]">{selectedMerchant.storeName}</h3>
+            <p className="text-sm font-bold text-[var(--color-text-muted)] mt-1">{selectedMerchant.category}</p>
             {selectedMerchant.offers && (
-              <div className="bg-brand-orange text-white text-xs font-bold px-3 py-1 rounded-full mt-2 inline-block shadow-sm">
+              <div className="bg-[var(--color-pastel-yellow)] text-[var(--color-text-main)] text-xs font-bold px-3 py-1 rounded-full mt-2 inline-block border border-white/50 shadow-sm">
                 🎁 {selectedMerchant.offers}
               </div>
             )}
           </div>
           <div className="flex gap-2 w-full mt-2">
-            <button onClick={() => setSelectedMerchant(null)} className="flex-1 border-2 border-slate-900 text-slate-900 font-bold py-2 rounded-xl hover:bg-slate-100 transition-colors">
+            <button onClick={() => setSelectedMerchant(null)} className="flex-1 glass-active text-[var(--color-text-main)] font-bold py-2 rounded-xl hover:-translate-y-0.5 transition-all shadow-sm border border-white/40">
               Cancel
             </button>
-            <button onClick={handleStartNavigation} className="flex-1 bg-brand-green border-2 border-slate-900 text-slate-900 font-bold py-2 rounded-xl shadow-comic hover:-translate-y-1 transition-transform">
+            <button onClick={handleStartNavigation} className="flex-1 bg-[var(--color-teal-dark)] text-white font-bold py-2 rounded-xl shadow-md hover:-translate-y-1 transition-transform border border-white/20">
               Go Here 📍
             </button>
           </div>
