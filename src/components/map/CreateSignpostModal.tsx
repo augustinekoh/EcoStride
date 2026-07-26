@@ -39,7 +39,7 @@ export const CreateSignpostModal: React.FC<Props> = ({ isOpen, onClose, currentL
         authorId: user?.uid || 'anonymous',
         authorEmail: user?.email || 'Guest Commuter',
         likes: 0,
-        createdAt: serverTimestamp()
+        createdAt: Date.now()
       });
       setMessage('');
       onClose();

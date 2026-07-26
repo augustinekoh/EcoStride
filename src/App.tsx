@@ -9,7 +9,6 @@ import { LandingPage } from './components/landing/LandingPage';
 import { RouteSimulator } from './components/controls/RouteSimulator';
 import { MapView } from './components/map/MapView';
 import { ImpactReportModal } from './components/modals/ImpactReportModal';
-import { MerchantDashboard } from './components/merchant/MerchantDashboard';
 import { MerchantOnboardingForm } from './components/merchant/MerchantOnboardingForm';
 import { AuthModal } from './components/modals/AuthModal';
 import { AdminLogin } from './components/admin/AdminLogin';
@@ -46,7 +45,6 @@ function PublicApp() {
           <ImpactReportModal />
         </>
       )}
-      {activeView === 'merchant_dashboard' && <MerchantDashboard />}
       {activeView === 'merchant_onboarding' && <MerchantOnboardingForm />}
       {activeView === 'group' && (
         <div className="h-full w-full bg-brand-cream flex items-center justify-center p-8 text-center">
@@ -83,6 +81,18 @@ function App() {
         treesSnap.forEach(async (treeDoc) => {
           if (treeDoc.data().plantedAt < threshold) {
             await deleteDoc(doc(db, 'trees', treeDoc.id));
+          }
+        });
+
+        // Passive cleanup of expired signposts (3 days)
+        const signpostThreshold = Date.now() - (3 * 24 * 60 * 60 * 1000);
+        const signpostsSnap = await getDocs(collection(db, 'signposts'));
+        signpostsSnap.forEach(async (spDoc) => {
+          const createdAt = spDoc.data().createdAt;
+          const timeMs = createdAt?.toMillis ? createdAt.toMillis() : createdAt;
+          
+          if (timeMs && timeMs < signpostThreshold) {
+            await deleteDoc(doc(db, 'signposts', spDoc.id));
           }
         });
       } catch (err) {

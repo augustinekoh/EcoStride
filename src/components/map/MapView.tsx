@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Map, { Source, Layer, Marker, Popup } from 'react-map-gl/mapbox';
 import type { ViewState } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Leaf, X } from 'lucide-react';
+import { Leaf, X, ExternalLink, Gift, MapPin } from 'lucide-react';
 
 import { useDemoStore } from '../../stores/useDemoStore';
 import { useMapStore } from '../../stores/useMapStore';
@@ -19,6 +19,7 @@ import { CreateSignpostModal } from './CreateSignpostModal';
 import { LeaderboardModal } from '../modals/LeaderboardModal';
 import { UserMerchantModal } from '../modals/UserMerchantModal';
 import { Trophy, Store } from 'lucide-react';
+import { PointsStoreModal } from '../modals/PointsStoreModal';
 
 export const MapView: React.FC = () => {
   const { demoProgress, currentMode, setShowReportModal } = useDemoStore();
@@ -59,6 +60,7 @@ export const MapView: React.FC = () => {
   const [showCongratsModal, setShowCongratsModal] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showMerchantModal, setShowMerchantModal] = useState(false);
+  const [merchantStoreFilter, setMerchantStoreFilter] = useState<string | null>(null);
   const { user } = useAuthStore();
 
   // Fetch real merchants from Firestore
@@ -679,21 +681,41 @@ export const MapView: React.FC = () => {
       {/* Merchant Confirmation Overlay */}
       {selectedMerchant && !activeRouteData && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 glass-card border border-white/50 shadow-lg px-8 py-6 rounded-3xl flex flex-col items-center gap-4 z-[110] w-80 text-center animate-in slide-in-from-bottom-10 fade-in duration-300">
-          <div>
-            <h3 className="text-2xl font-black text-[var(--color-text-main)]">{selectedMerchant.storeName}</h3>
-            <p className="text-sm font-bold text-[var(--color-text-muted)] mt-1">{selectedMerchant.category}</p>
+          <button 
+            onClick={() => setSelectedMerchant(null)} 
+            className="absolute top-4 right-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] transition-colors bg-white/50 rounded-full p-1 border border-white/40 shadow-sm hover:shadow-md hover:-translate-y-0.5"
+          >
+            <X size={18} strokeWidth={3} />
+          </button>
+
+          <div className="mt-2 w-full">
+            <div className="w-16 h-16 glass-active border border-white/60 shadow-sm rounded-2xl mx-auto flex items-center justify-center text-3xl mb-3">
+              {selectedMerchant.icon || '🏪'}
+            </div>
+            <h3 className="text-2xl font-black text-[var(--color-text-main)] leading-tight">{selectedMerchant.storeName}</h3>
+            <p className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-widest mt-1">{selectedMerchant.category}</p>
+            
             {selectedMerchant.offers && (
-              <div className="bg-[var(--color-pastel-yellow)] text-[var(--color-text-main)] text-xs font-bold px-3 py-1 rounded-full mt-2 inline-block border border-white/50 shadow-sm">
+              <div className="bg-[var(--color-pastel-yellow)] text-[var(--color-text-main)] text-xs font-bold px-3 py-1.5 rounded-lg mt-3 inline-block shadow-sm uppercase tracking-wider border border-white/50">
                 🎁 {selectedMerchant.offers}
               </div>
             )}
+            
+            {selectedMerchant.menuLink && (
+              <div className="mt-4 glass-active rounded-lg p-2 border border-white/40">
+                <a href={selectedMerchant.menuLink} target="_blank" rel="noreferrer" className="text-[var(--color-teal-dark)] text-xs font-bold hover:text-[var(--color-teal-mid)] flex items-center justify-center gap-1">
+                  View Menu / Details <ExternalLink size={14} />
+                </a>
+              </div>
+            )}
           </div>
-          <div className="flex gap-2 w-full mt-2">
-            <button onClick={() => setSelectedMerchant(null)} className="flex-1 glass-active text-[var(--color-text-main)] font-bold py-2 rounded-xl hover:-translate-y-0.5 transition-all shadow-sm border border-white/40">
-              Cancel
+          
+          <div className="flex gap-3 w-full mt-2">
+            <button onClick={() => setMerchantStoreFilter(selectedMerchant.id)} className="flex-1 glass-active text-[var(--color-text-main)] font-black py-3 rounded-xl shadow-sm border border-white/40 hover:-translate-y-1 hover:shadow-md transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
+              <Gift size={16} /> Vouchers
             </button>
-            <button onClick={handleStartNavigation} className="flex-1 bg-[var(--color-teal-dark)] text-white font-bold py-2 rounded-xl shadow-md hover:-translate-y-1 transition-transform border border-white/20">
-              Go Here 📍
+            <button onClick={handleStartNavigation} className="flex-1 bg-[var(--color-teal-dark)] text-white font-black py-3 rounded-xl shadow-md border border-white/20 hover:-translate-y-1 hover:shadow-lg transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
+              <MapPin size={16} /> Go Here
             </button>
           </div>
         </div>
@@ -750,6 +772,14 @@ export const MapView: React.FC = () => {
 
       <LeaderboardModal isOpen={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
       <UserMerchantModal isOpen={showMerchantModal} onClose={() => setShowMerchantModal(false)} />
+
+      {/* Points Store Modal Filtered */}
+      {merchantStoreFilter && (
+        <PointsStoreModal 
+          merchantFilter={merchantStoreFilter} 
+          onClose={() => setMerchantStoreFilter(null)} 
+        />
+      )}
     </div>
   );
 };

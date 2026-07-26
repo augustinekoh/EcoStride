@@ -32,7 +32,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
               monthlyPoints: data.coins || 0,
               totalMileageKm: data.totalDistanceKm || 0,
               treesPlanted: 0, // Fallback for sample
-              guildName: data.guildId && data.guildId !== 'None' ? data.guildId : (data.role === 'merchant' ? 'Merchants Guild' : 'Independent Explorer'),
+              guildName: data.guildId && data.guildId !== 'None' ? data.guildId : 'Explorer',
               isRisingStar: emailSum % 2 === 0,
               ...data
             };
