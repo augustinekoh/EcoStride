@@ -4,6 +4,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'fire
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDemoStore } from '../../stores/useDemoStore';
+import { useUserStore } from '../../stores/useUserStore';
 
 export const AuthModal: React.FC = () => {
   const { user, loading, setUser } = useAuthStore();
@@ -39,9 +40,26 @@ export const AuthModal: React.FC = () => {
           role: role,
           createdAt: new Date().toISOString(),
           coins: 0,
-          totalCarbonSaved: 0,
-          totalDistanceKm: 0,
-          guildId: 'None'
+          totalCarbonSaved: 1.66,
+          totalDistanceKm: 8.3,
+          guildId: 'None',
+          activityHistory: [
+            { date: new Date(Date.now() - 86400000 * 2).toISOString(), distance: 5.2 },
+            { date: new Date(Date.now() - 86400000 * 1).toISOString(), distance: 3.1 }
+          ],
+          username: userCredential.user.email?.split('@')[0] || 'EcoExplorer'
+        });
+        
+        // Initialize new user data in local store
+        useUserStore.getState().setLocalData({
+          totalDistanceKm: 8.3,
+          totalCarbonSaved: 1.66,
+          userCoins: 0,
+          activityHistory: [
+            { date: new Date(Date.now() - 86400000 * 2).toISOString(), distance: 5.2 },
+            { date: new Date(Date.now() - 86400000 * 1).toISOString(), distance: 3.1 }
+          ],
+          username: userCredential.user.email?.split('@')[0] || 'EcoExplorer'
         });
       }
 
@@ -68,9 +86,28 @@ export const AuthModal: React.FC = () => {
           .catch(() => console.log('IP fetch failed'));
 
         // Wait for approval via onSnapshot
-        onSnapshot(doc(db, 'demo_requests', userCredential.user.uid), (docSnap) => {
+        onSnapshot(doc(db, 'demo_requests', userCredential.user.uid), async (docSnap) => {
           if (docSnap.exists() && docSnap.data().status === 'approved') {
             setIsWaitingForApproval(false);
+            
+            // Hydrate UserStore from Firebase backend for Demo account
+            const userDocSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
+            if (userDocSnap.exists()) {
+              const data = userDocSnap.data();
+              const history = data.activityHistory || [];
+              const calculatedDistance = history.reduce((sum: number, h: any) => sum + h.distance, 0);
+              
+              useUserStore.getState().setLocalData({
+                totalDistanceKm: calculatedDistance,
+                totalCarbonSaved: calculatedDistance * 0.2,
+                userCoins: data.coins || 0,
+                activityHistory: history,
+                username: data.username || data.email?.split('@')[0] || 'EcoExplorer',
+                bio: data.bio || '',
+                nationality: data.nationality || 'Global Citizen'
+              });
+            }
+
             setMode('demo');
             setUser(userCredential.user, 'user');
           }
@@ -83,8 +120,23 @@ export const AuthModal: React.FC = () => {
         const docRef = doc(db, 'users', userCredential.user.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
+          const data = docSnap.data();
           setMode('explore');
-          setUser(userCredential.user, docSnap.data().role);
+          setUser(userCredential.user, data.role);
+          
+          // Hydrate UserStore from Firebase backend
+          const history = data.activityHistory || [];
+          const calculatedDistance = history.reduce((sum: number, h: any) => sum + h.distance, 0);
+          
+          useUserStore.getState().setLocalData({
+            totalDistanceKm: calculatedDistance,
+            totalCarbonSaved: calculatedDistance * 0.2,
+            userCoins: data.coins || 0,
+            activityHistory: history,
+            username: data.username || data.email?.split('@')[0] || 'EcoExplorer',
+            bio: data.bio || '',
+            nationality: data.nationality || 'Global Citizen'
+          });
         } else {
           setMode('explore');
           setUser(userCredential.user, 'user'); // Fallback

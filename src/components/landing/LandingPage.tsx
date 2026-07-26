@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUserStore } from '../../stores/useUserStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { Bell, Activity, Map as MapIcon, ChevronRight, ChevronDown, ChevronLeft, Calendar as CalendarIcon, X } from 'lucide-react';
+import { CarbonStatsModal } from '../modals/CarbonStatsModal';
 
 // --- Utility Functions for Dates ---
 const getMonday = (d: Date) => {
@@ -24,7 +25,7 @@ const getDistanceForDate = (date: Date, history: any[]) => {
 };
 
 export const LandingPage: React.FC = () => {
-  const { totalDistanceKm, streaks, totalCarbonSaved, activityHistory } = useUserStore();
+  const { activityHistory, notifications, clearNotifications, totalCarbonSaved, totalDistanceKm } = useUserStore();
   const { user } = useAuthStore();
   
   const [greeting, setGreeting] = useState('');
@@ -36,6 +37,30 @@ export const LandingPage: React.FC = () => {
   const [calendarView, setCalendarView] = useState<'Week' | 'Month'>('Week');
   const [baseDate, setBaseDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  const [showAllActivities, setShowAllActivities] = useState(false);
+  const [showCarbonModal, setShowCarbonModal] = useState(false);
+
+  const calculateStreak = () => {
+    let streak = 0;
+    let d = new Date();
+    
+    // If today is 0, check yesterday to start the streak loop just in case
+    if (getDistanceForDate(d, activityHistory) === 0) {
+      d.setDate(d.getDate() - 1);
+    }
+    
+    // Keep going backwards day by day as long as distance > 0
+    while (getDistanceForDate(d, activityHistory) > 0) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    return streak;
+  };
+
+  const calculatedStreak = calculateStreak();
+  // Using direct variables to guarantee sync with Admin Dashboard
+  const calculatedCarbonSaved = totalCarbonSaved;
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -151,7 +176,7 @@ export const LandingPage: React.FC = () => {
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full glass-card p-1 flex items-center justify-center">
             <img 
-              src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=transparent" 
+              src="https://api.dicebear.com/7.x/bottts/svg?seed=EcoStride" 
               alt="Profile" 
               className="w-full h-full object-cover rounded-full bg-white/30 backdrop-blur-sm"
             />
@@ -173,15 +198,28 @@ export const LandingPage: React.FC = () => {
 
           {showNotifications && (
             <div className="absolute right-0 top-16 w-72 glass-card p-5 z-50 animate-in fade-in slide-in-from-top-2">
-              <h3 className="font-black text-[var(--color-text-main)] mb-3">Alerts</h3>
-              <div className="space-y-3">
-                <div className="p-4 glass-active rounded-2xl flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[var(--color-teal-dark)] flex-shrink-0 flex items-center justify-center text-white font-bold text-xs shadow-sm">🏆</div>
-                  <div>
-                    <p className="text-sm font-bold text-[var(--color-text-main)]">New Achievement!</p>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1 font-semibold">You just hit a 5-day streak.</p>
-                  </div>
-                </div>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-black text-[var(--color-text-main)]">Alerts</h3>
+                {notifications.length > 0 && (
+                  <button onClick={() => clearNotifications()} className="text-xs font-bold text-[var(--color-teal-dark)] hover:underline">Clear</button>
+                )}
+              </div>
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <p className="text-sm font-bold text-[var(--color-text-muted)] py-4 text-center">No new alerts.</p>
+                ) : (
+                  notifications.map((notif, idx) => (
+                    <div key={notif.id || idx} className="p-4 glass-active rounded-2xl flex items-start gap-3 shadow-sm border border-white/40 animate-in slide-in-from-right-2">
+                      <div className="w-8 h-8 rounded-full bg-[var(--color-teal-dark)] flex-shrink-0 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                        {notif.icon || '🔔'}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-[var(--color-text-main)]">{notif.title}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] mt-1 font-semibold leading-relaxed">{notif.message}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -243,23 +281,17 @@ export const LandingPage: React.FC = () => {
       {/* Secondary Cards */}
       <div className="grid grid-cols-2 gap-4 mb-8 relative z-10">
         <div className="glass-card p-6 relative group cursor-pointer hover:-translate-y-1 transition-all">
-          <div className="absolute top-5 right-5 w-10 h-10 glass-active rounded-full flex items-center justify-center transition-colors">
-            <ChevronRight size={20} className="text-[var(--color-teal-dark)]" />
-          </div>
           <p className="text-sm font-bold text-[var(--color-text-muted)] mb-2">Active Streak</p>
           <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-black text-[var(--color-text-main)] drop-shadow-sm">{streaks}</span>
+            <span className="text-4xl font-black text-[var(--color-text-main)] drop-shadow-sm">{calculatedStreak}</span>
             <span className="text-sm font-bold text-[var(--color-text-muted)]">days</span>
           </div>
         </div>
 
-        <div className="glass-card p-6 relative group cursor-pointer hover:-translate-y-1 transition-all">
-          <div className="absolute top-5 right-5 w-10 h-10 glass-active rounded-full flex items-center justify-center transition-colors">
-            <ChevronRight size={20} className="text-[var(--color-teal-dark)]" />
-          </div>
+        <div onClick={() => setShowCarbonModal(true)} className="glass-card p-6 relative group cursor-pointer hover:-translate-y-1 transition-all">
           <p className="text-sm font-bold text-[var(--color-text-muted)] mb-2">Carbon Saved</p>
           <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-black text-[var(--color-text-main)] drop-shadow-sm">{totalCarbonSaved.toFixed(1)}</span>
+            <span className="text-4xl font-black text-[var(--color-text-main)] drop-shadow-sm">{calculatedCarbonSaved.toFixed(1)}</span>
             <span className="text-sm font-bold text-[var(--color-text-muted)]">kg</span>
           </div>
         </div>
@@ -269,7 +301,7 @@ export const LandingPage: React.FC = () => {
       <div className="relative z-10">
         <h3 className="text-2xl font-black text-[var(--color-text-main)] mb-5 tracking-wide">Recent Activity</h3>
         <div className="space-y-4">
-          {activityHistory.slice(-2).reverse().map((trip, idx) => (
+          {(showAllActivities ? activityHistory : activityHistory.slice(-3)).reverse().map((trip, idx) => (
              <div key={idx} className="glass-card p-5 flex items-center justify-between cursor-pointer hover:-translate-y-1 transition-all">
              <div className="flex items-center gap-5">
                <div className="w-16 h-16 rounded-[1.5rem] glass-active flex items-center justify-center shadow-sm">
@@ -295,6 +327,14 @@ export const LandingPage: React.FC = () => {
             <div className="glass-card p-6 flex justify-center">
               <p className="text-[var(--color-text-muted)] font-bold text-center">No logs found. Start walking!</p>
             </div>
+          )}
+          {activityHistory.length > 3 && (
+            <button 
+              onClick={() => setShowAllActivities(!showAllActivities)} 
+              className="w-full mt-2 glass-active py-3 rounded-xl font-bold text-[var(--color-text-main)] shadow-sm hover:shadow-md transition-all text-sm"
+            >
+              {showAllActivities ? 'View Less' : 'View More'}
+            </button>
           )}
         </div>
       </div>
@@ -442,6 +482,8 @@ export const LandingPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <CarbonStatsModal isOpen={showCarbonModal} onClose={() => setShowCarbonModal(false)} />
 
     </div>
   );

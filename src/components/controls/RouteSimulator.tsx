@@ -29,7 +29,7 @@ export const RouteSimulator: React.FC = () => {
   }, [isAutoPlaying, setProgress, setIsAutoPlaying, setShowReportModal, distanceToTarget, currentMode, activeRouteGeoJSON]);
 
   const currentDistance = distanceToTarget ? (distanceToTarget * demoProgress) / 100 : 0;
-  const currentCarbon = currentDistance / 4.5;
+  const currentCarbon = currentDistance * 0.2;
   const currentCoins = Math.floor(currentCarbon * 100);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export const RouteSimulator: React.FC = () => {
     const currentMilestone = Math.floor(currentDistance);
     if (currentMilestone > lastMilestoneRef.current && currentMilestone >= 1) {
       lastMilestoneRef.current = currentMilestone;
-      setMilestoneToast(`Awesome! You walked ${currentMilestone}km, saved ${(currentMilestone / 4.5).toFixed(2)}kg CO2 & earned ${Math.floor((currentMilestone / 4.5) * 100)} Coins!`);
+      setMilestoneToast(`Awesome! You walked ${currentMilestone}km, saved ${(currentMilestone * 0.2).toFixed(2)}kg CO2 & earned ${Math.floor((currentMilestone * 0.2) * 100)} Coins!`);
       setTimeout(() => setMilestoneToast(null), 4000);
     }
   }, [currentDistance, demoProgress]);

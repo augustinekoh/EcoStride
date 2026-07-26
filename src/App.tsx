@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDemoStore } from './stores/useDemoStore';
 import { BottomNavBar } from './components/controls/BottomNavBar';
 import { ProfileView } from './components/profile/ProfileView';
+import { SettingsView } from './components/profile/SettingsView';
 import { CityView } from './components/city/CityView';
 import { LeaderboardModal } from './components/modals/LeaderboardModal';
 import { LandingPage } from './components/landing/LandingPage';
@@ -26,18 +27,19 @@ function PublicApp() {
 
   if (!user || isWaitingForApproval) {
     return (
-      <div className="w-screen h-screen overflow-hidden bg-brand-cream relative text-slate-900 font-sans">
+      <div className="w-screen h-screen overflow-hidden relative text-[var(--color-text-main)] font-sans transition-colors duration-500">
         <AuthModal />
       </div>
     );
   }
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-brand-cream relative text-slate-900 font-sans">
-      <BottomNavBar />
+    <div className="w-screen h-screen overflow-hidden relative text-[var(--color-text-main)] font-sans transition-colors duration-500">
+      {activeView !== 'settings' && <BottomNavBar />}
       
       {activeView === 'landing' && <LandingPage />}
       {activeView === 'profile' && <ProfileView />}
+      {activeView === 'settings' && <SettingsView />}
       {activeView === 'city' && <CityView />}
       {activeView === 'map' && (
         <>
@@ -69,7 +71,7 @@ function AdminApp() {
 
 function App() {
   const { setUser, loading, setLoading } = useAuthStore();
-  const { setUserData } = useUserStore();
+  const { setLocalData } = useUserStore();
 
   useEffect(() => {
     // Passive cleanup of expired trees
@@ -102,13 +104,22 @@ function App() {
         unsubUserDoc = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            setUserData({
+            setLocalData({
               userCoins: data.coins || 0,
               totalCarbonSaved: data.totalCarbonSaved || 0,
               totalDistanceKm: data.totalDistanceKm || 0
             });
           }
         });
+
+        // Setup real-time listener for trees planted by this user
+        const unsubTrees = onSnapshot(collection(db, 'trees'), (snapshot) => {
+          const userTrees = snapshot.docs.filter(doc => doc.data().authorId === user.uid);
+          setLocalData({ totalTreesPlanted: userTrees.length });
+        });
+
+        // Store it so we can unsubscribe later
+        (window as any).unsubTrees = unsubTrees;
 
         // First check if they are in the admins collection
         const adminSnap = await getDoc(doc(db, 'admins', user.uid));
@@ -157,17 +168,28 @@ function App() {
       } else {
         if (unsubUserDoc) unsubUserDoc();
         setUser(null, null);
-        setUserData({ userCoins: 0, totalCarbonSaved: 0, totalDistanceKm: 0 });
+        setLocalData({ userCoins: 0, totalCarbonSaved: 0, totalDistanceKm: 0 });
       }
       setLoading(false);
     });
     return () => {
       unsubscribe();
       if (unsubUserDoc) unsubUserDoc();
+      if ((window as any).unsubTrees) (window as any).unsubTrees();
     };
-  }, [setUser, setLoading, setUserData]);
+  }, [setUser, setLoading, setLocalData]);
 
-  if (loading) return <div className="w-screen h-screen bg-brand-cream flex items-center justify-center font-bold text-xl">Loading...</div>;
+  // Dark Mode effect
+  const isDarkMode = useUserStore(state => state.isDarkMode);
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  if (loading) return <div className="w-screen h-screen flex items-center justify-center font-bold text-xl transition-colors duration-500 text-[var(--color-text-main)]">Loading...</div>;
 
   return (
     <BrowserRouter>

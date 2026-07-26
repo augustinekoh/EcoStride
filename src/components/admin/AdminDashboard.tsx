@@ -114,8 +114,12 @@ export const AdminDashboard: React.FC = () => {
     fetchApplications();
   };
 
-  const handleApproveDemo = async (id: string) => {
-    await updateDoc(doc(db, 'demo_requests', id), { status: 'approved' });
+  const handleApproveDemo = async (req: any) => {
+    await updateDoc(doc(db, 'demo_requests', req.id), { status: 'approved' });
+    await setDoc(doc(db, 'users', req.id), {
+      email: req.email,
+      role: 'user'
+    }, { merge: true });
   };
 
   const handleRejectDemo = async (id: string) => {
@@ -209,7 +213,7 @@ export const AdminDashboard: React.FC = () => {
                 <p className="text-xs text-slate-400 mt-1">Requested At: {new Date(req.requestedAt).toLocaleString()}</p>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => handleApproveDemo(req.id)} className="bg-brand-yellow text-slate-900 font-bold px-4 py-2 rounded-lg hover:bg-yellow-400">Approve</button>
+                <button onClick={() => handleApproveDemo(req)} className="bg-brand-yellow text-slate-900 font-bold px-4 py-2 rounded-lg hover:bg-yellow-400">Approve</button>
                 <button onClick={() => handleRejectDemo(req.id)} className="bg-red-500 text-white font-bold px-4 py-2 rounded-lg hover:bg-red-600">Reject</button>
               </div>
             </div>

@@ -21,7 +21,7 @@ export const BottomNavBar: React.FC = () => {
     { id: 'landing', icon: <Home size={24} />, label: 'Home' },
     { id: 'city', icon: <Building size={24} />, label: 'City' },
     { id: 'map', icon: <MapIcon size={28} className="text-white drop-shadow-md" />, label: "Walk", isCenter: true },
-    { id: 'group', icon: <Users size={24} />, label: 'Group' },
+    { id: 'group', icon: <Users size={24} />, label: 'Social' },
     { id: 'profile', icon: <User size={24} />, label: 'Profile' },
   ];
 

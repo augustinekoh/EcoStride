@@ -22,48 +22,38 @@ export const ImpactReportModal: React.FC = () => {
       });
 
       const dist = completedDistanceKm || 0;
-      const carbon = dist / 4.5;
+      const carbon = dist * 0.2;
       const coins = Math.floor(carbon * 100);
       
       setStats({ distance: dist, carbon, coins });
 
-      // Optimistic local update
+      // Optimistic local update (now automatically syncs to Firestore via Zustand store)
       addCoins(coins);
-      addCarbonSaved(carbon);
-      addActivity(dist);
-
-      // Persist to Firestore
-      if (auth.currentUser) {
-        updateDoc(doc(db, 'users', auth.currentUser.uid), {
-          coins: increment(coins),
-          totalCarbonSaved: increment(carbon),
-          totalDistanceKm: increment(dist)
-        }).catch(err => console.error("Failed to reward points:", err));
-      }
+      addActivity(dist); // Note: addActivity in UserStore calculates and adds the carbon using 0.2 multiplier
     }
   }, [showReportModal, completedDistanceKm, addCoins, addCarbonSaved]);
 
   if (!showReportModal) return null;
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-brand-cream border-comic rounded-3xl p-8 max-w-md w-full shadow-[8px_8px_0px_0px_#0f172a] animate-in zoom-in duration-300">
-        <h2 className="text-3xl font-black text-center mb-6 uppercase tracking-tight text-brand-green drop-shadow-[2px_2px_0px_#0f172a]">
+    <div className="absolute inset-0 z-[120] flex items-center justify-center bg-[var(--color-teal-dark)]/20 backdrop-blur-md p-4 animate-in fade-in">
+      <div className="glass-card p-8 max-w-md w-full animate-in zoom-in slide-in-from-bottom-4 duration-300">
+        <h2 className="text-3xl font-black text-center mb-6 uppercase tracking-tight text-[var(--color-text-main)] drop-shadow-sm">
           Journey Complete!
         </h2>
         
-        <div className="space-y-4 mb-6">
-          <div className="bg-white p-4 rounded-2xl border-2 border-slate-900 flex justify-between items-center">
-            <span className="font-bold text-slate-500">Distance</span>
-            <span className="font-black text-xl">{stats.distance.toFixed(1)} km</span>
+        <div className="space-y-4 mb-8">
+          <div className="glass-active p-5 rounded-2xl flex justify-between items-center shadow-sm border border-white/40">
+            <span className="font-bold text-sm text-[var(--color-text-muted)] uppercase tracking-wider">Distance</span>
+            <span className="font-black text-2xl text-[var(--color-text-main)]">{stats.distance.toFixed(1)} km</span>
           </div>
-          <div className="bg-brand-green/20 p-4 rounded-2xl border-2 border-slate-900 flex justify-between items-center">
-            <span className="font-bold text-slate-500">CO2 Saved</span>
-            <span className="font-black text-xl text-brand-green">{stats.carbon.toFixed(2)} kg</span>
+          <div className="glass-active p-5 rounded-2xl flex justify-between items-center shadow-sm border border-white/40">
+            <span className="font-bold text-sm text-[var(--color-text-muted)] uppercase tracking-wider">CO2 Saved</span>
+            <span className="font-black text-2xl text-[var(--color-teal-dark)]">{stats.carbon.toFixed(2)} kg</span>
           </div>
-          <div className="bg-brand-yellow/20 p-4 rounded-2xl border-2 border-slate-900 flex justify-between items-center">
-            <span className="font-bold text-slate-500">Coins Earned</span>
-            <span className="font-black text-xl text-brand-orange">+{stats.coins} 🪙</span>
+          <div className="glass-active p-5 rounded-2xl flex justify-between items-center shadow-sm border border-white/40">
+            <span className="font-bold text-sm text-[var(--color-text-muted)] uppercase tracking-wider">Coins Earned</span>
+            <span className="font-black text-2xl text-orange-400">+{stats.coins} 🪙</span>
           </div>
         </div>
 
@@ -81,7 +71,7 @@ export const ImpactReportModal: React.FC = () => {
             setShowReportModal(false);
             setProgress(0);
           }}
-          className="w-full bg-brand-yellow hover:bg-yellow-300 border-2 border-slate-900 py-3 rounded-full font-black uppercase tracking-wide shadow-comic-hover active:translate-y-1 active:shadow-none transition-all"
+          className="w-full bg-[var(--color-teal-dark)] text-white py-4 rounded-full font-black uppercase tracking-wide shadow-md hover:-translate-y-1 hover:shadow-lg active:translate-y-0 transition-all border border-white/20"
         >
           Claim Rewards & Continue
         </button>
