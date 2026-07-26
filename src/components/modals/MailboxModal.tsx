@@ -39,7 +39,7 @@ export const MailboxModal: React.FC<MailboxModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[150] flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
       
       <div className="relative w-full max-w-2xl bg-[#faf9f6] h-[90vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl border-t-2 sm:border-2 border-slate-900 shadow-comic flex flex-col animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-8 duration-300">
@@ -47,7 +47,7 @@ export const MailboxModal: React.FC<MailboxModalProps> = ({ onClose }) => {
         {/* Header */}
         <div className="sticky top-0 bg-[#faf9f6] z-10 border-b-2 border-slate-900 px-6 py-4 rounded-t-3xl flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="bg-brand-blue p-2 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a]">
+            <div className="bg-[var(--color-teal-dark)] p-2 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a]">
               <Mail size={24} className="text-white" />
             </div>
             <div>

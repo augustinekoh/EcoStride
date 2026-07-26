@@ -105,7 +105,7 @@ export const AuthModal: React.FC = () => {
   if (isWaitingForApproval) {
     if (demoRequestRejected) {
       return (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div className="absolute inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-brand-cream border-comic rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_#0f172a] flex flex-col items-center">
             <h2 className="text-3xl font-black text-center mb-4 uppercase tracking-tight drop-shadow-[2px_2px_0px_#0f172a] text-red-500">
               Access Denied
@@ -135,9 +135,9 @@ export const AuthModal: React.FC = () => {
     }
 
     return (
-      <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div className="bg-brand-cream border-comic rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_#0f172a] flex flex-col items-center">
-          <h2 className="text-3xl font-black text-center mb-4 uppercase tracking-tight drop-shadow-[2px_2px_0px_#0f172a] text-brand-yellow">
+      <div className="absolute inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div className="bg-[#faf9f6] border-4 border-[#1d3539] rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_#1d3539] flex flex-col items-center">
+          <h2 className="text-3xl font-black text-center mb-4 uppercase tracking-tight drop-shadow-[2px_2px_0px_#80abb1] text-[#1d3539]">
             Waiting for Admin
           </h2>
           <div className="animate-spin text-5xl mb-6">⏳</div>
@@ -150,9 +150,9 @@ export const AuthModal: React.FC = () => {
   }
 
   return (
-    <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-brand-cream border-comic rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_#0f172a]">
-        <h2 className="text-3xl font-black text-center mb-2 uppercase tracking-tight drop-shadow-[2px_2px_0px_#0f172a] text-brand-green">
+    <div className="absolute inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <div className="bg-[#faf9f6] border-4 border-[#1d3539] rounded-3xl p-8 max-w-sm w-full shadow-[8px_8px_0px_0px_#1d3539]">
+        <h2 className="text-3xl font-black text-center mb-2 uppercase tracking-tight drop-shadow-[2px_2px_0px_#80abb1] text-[#1d3539]">
           {isLogin ? 'Welcome Back' : 'Join EcoStride'}
         </h2>
         <p className="text-center font-bold text-slate-500 mb-6">
@@ -198,10 +198,11 @@ export const AuthModal: React.FC = () => {
           )}
 
           <button 
-            type="submit"
-            className="w-full bg-brand-yellow hover:bg-yellow-300 border-2 border-slate-900 py-3 rounded-full font-black uppercase tracking-wide shadow-comic-hover active:translate-y-1 active:shadow-none transition-all mt-4"
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-[#5496a2] hover:bg-[#80abb1] border-2 border-[#1d3539] text-white py-3 rounded-full font-black uppercase tracking-wide shadow-[4px_4px_0px_0px_#1d3539] active:translate-y-1 active:shadow-none transition-all disabled:opacity-50 mt-4"
           >
-            {isLogin ? 'Login' : 'Register'}
+            {loading ? 'Processing...' : (isLogin ? 'Login' : 'Register')}
           </button>
         </form>
 

@@ -87,7 +87,7 @@ export const PointsStoreModal: React.FC<PointsStoreModalProps> = ({ onClose, mer
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[150] flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
       
       <div className="relative w-full max-w-2xl bg-[#faf9f6] h-[90vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl border-t-2 sm:border-2 border-slate-900 shadow-comic flex flex-col animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-8 duration-300">
@@ -95,12 +95,12 @@ export const PointsStoreModal: React.FC<PointsStoreModalProps> = ({ onClose, mer
         {/* Header */}
         <div className="sticky top-0 bg-[#faf9f6] z-10 border-b-2 border-slate-900 px-6 py-4 rounded-t-3xl flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="bg-brand-pink p-2 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a]">
-              <Gift size={24} className="text-white" />
+            <div className="bg-[var(--color-pastel-yellow)] p-2 rounded-xl border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a]">
+              <Gift size={24} className="text-[var(--color-text-main)]" />
             </div>
             <div>
               <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Points Store</h2>
-              <p className="text-sm font-bold text-slate-500">Your Balance: <span className="text-brand-orange">🪙 {userCoins}</span></p>
+              <p className="text-sm font-bold text-slate-500">Your Balance: <span className="text-amber-500">🪙 {userCoins}</span></p>
             </div>
           </div>
           <button 

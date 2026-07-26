@@ -52,12 +52,12 @@ export const CreateSignpostModal: React.FC<Props> = ({ isOpen, onClose, currentL
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
-      <div className="bg-white border-4 border-slate-900 shadow-comic rounded-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-[#faf9f6] w-full max-w-sm rounded-3xl border-4 border-[#1d3539] shadow-[8px_8px_0px_0px_#1d3539] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
         
-        <div className="bg-brand-pink border-b-4 border-slate-900 px-4 py-3 flex items-center justify-between">
-          <h2 className="font-black text-slate-900 text-lg uppercase tracking-tight">📍 Drop a Signpost</h2>
-          <button onClick={onClose} className="text-slate-900 font-bold hover:scale-110 transition-transform">
+        <div className="bg-[#5496a2] border-b-4 border-[#1d3539] px-4 py-3 flex items-center justify-between">
+          <h2 className="font-black text-white text-lg uppercase tracking-tight">📍 Drop a Signpost</h2>
+          <button onClick={onClose} className="text-white font-bold hover:scale-110 transition-transform">
             ✕
           </button>
         </div>
@@ -72,7 +72,7 @@ export const CreateSignpostModal: React.FC<Props> = ({ isOpen, onClose, currentL
                   key={emoji}
                   type="button"
                   onClick={() => setSelectedEmoji(emoji)}
-                  className={`text-3xl p-2 rounded-xl border-2 transition-transform ${selectedEmoji === emoji ? 'border-slate-900 bg-brand-yellow scale-110 shadow-comic' : 'border-transparent hover:bg-slate-100 hover:scale-105'}`}
+                  className={`text-3xl p-2 rounded-xl border-2 transition-transform ${selectedEmoji === emoji ? 'border-[#1d3539] bg-[#fff4d6] scale-110 shadow-[2px_2px_0px_0px_#1d3539]' : 'border-transparent hover:bg-slate-100 hover:scale-105'}`}
                 >
                   {emoji}
                 </button>
@@ -95,7 +95,7 @@ export const CreateSignpostModal: React.FC<Props> = ({ isOpen, onClose, currentL
           <button 
             type="submit" 
             disabled={isSubmitting}
-            className="w-full mt-2 bg-brand-green border-2 border-slate-900 shadow-comic rounded-xl py-3 font-black text-slate-900 uppercase tracking-wide hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full mt-2 bg-[#5496a2] border-2 border-[#1d3539] shadow-[4px_4px_0px_0px_#1d3539] text-white rounded-xl py-3 font-black uppercase tracking-wide hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? 'Dropping...' : 'Drop Signpost 📍'}
           </button>

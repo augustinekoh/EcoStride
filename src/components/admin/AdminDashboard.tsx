@@ -153,18 +153,41 @@ export const AdminDashboard: React.FC = () => {
     await setDoc(doc(db, 'merchants', app.id), {
       storeName: app.storeName,
       category: app.category,
-      offers: app.offers, 
+      offers: app.offers || '', 
       icon: app.icon || '🏪', 
       ownerId: app.merchantId,
       location: app.location || [103.6400, 1.5600],
       menuLink: app.menuLink || null
-    });
+    }, { merge: true });
+
+    if (app.vouchers && Array.isArray(app.vouchers)) {
+      for (const voucher of app.vouchers) {
+        const itemData = {
+          name: voucher.name,
+          description: voucher.desc,
+          price: Number(voucher.price),
+          stock: Number(voucher.stock),
+          icon: voucher.icon,
+          category: voucher.category || 'Vouchers',
+          merchantId: app.merchantId,
+          showInProfile: voucher.profileShow !== false,
+          createdAt: Date.now()
+        };
+        if (app.type === 'modification' && voucher.originalId) {
+          await updateDoc(doc(db, 'storeItems', voucher.originalId), itemData);
+        } else {
+          await setDoc(doc(collection(db, 'storeItems')), itemData);
+        }
+      }
+    }
 
     await setDoc(doc(collection(db, 'mail')), {
       recipientType: 'user',
       recipientId: app.merchantId,
-      title: 'Merchant Application Approved 🎉',
-      content: `Congratulations! Your merchant application for "${app.storeName}" has been approved.\n\nYou can now log out and log back in to see your merchant dashboard. Your store is now live on the map!`,
+      title: app.type === 'modification' ? 'Store Update Approved 🎉' : 'Merchant Application Approved 🎉',
+      content: app.type === 'modification' 
+        ? `Your store updates for "${app.storeName}" have been approved and are now live!`
+        : `Congratulations! Your merchant application for "${app.storeName}" has been approved.\n\nYou can now log out and log back in to see your merchant dashboard. Your store is now live on the map!`,
       sender: 'System',
       createdAt: Date.now()
     });
@@ -242,6 +265,17 @@ export const AdminDashboard: React.FC = () => {
 
   const handleIconChange = (appId: string, newIcon: string) => {
     setApplications(apps => apps.map(app => app.id === appId ? { ...app, icon: newIcon } : app));
+  };
+
+  const handleVoucherPriceChange = (appId: string, voucherIndex: number, newPrice: number) => {
+    setApplications(apps => apps.map(app => {
+      if (app.id === appId && app.vouchers) {
+        const newVouchers = [...app.vouchers];
+        newVouchers[voucherIndex] = { ...newVouchers[voucherIndex], price: newPrice };
+        return { ...app, vouchers: newVouchers };
+      }
+      return app;
+    }));
   };
 
   const handleAddStoreItem = async (e: React.FormEvent) => {
@@ -445,6 +479,34 @@ export const AdminDashboard: React.FC = () => {
                               </div>
                             </div>
                           </div>
+                          
+                          {app.vouchers && app.vouchers.length > 0 && (
+                            <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                              <h5 className="text-xs font-bold text-teal-700 uppercase mb-2">Proposed Vouchers</h5>
+                              <div className="space-y-2">
+                                {app.vouchers.map((v: any, vIdx: number) => (
+                                  <div key={vIdx} className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-lg">{v.icon}</span>
+                                      <div>
+                                        <p className="font-bold text-slate-900">{v.name} <span className="text-xs font-normal text-slate-500">x{v.stock}</span></p>
+                                        <p className="text-xs text-slate-500">{v.desc}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-orange-500">🪙</span>
+                                      <input 
+                                        type="number"
+                                        className="w-16 border border-slate-300 rounded px-1 text-center font-bold outline-none"
+                                        value={v.price}
+                                        onChange={(e) => handleVoucherPriceChange(app.id, vIdx, Number(e.target.value))}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="flex gap-2 shrink-0">
                           <button onClick={() => handleReject(app.id)} className="bg-white border border-red-200 text-red-600 font-bold px-4 py-2 rounded-lg hover:bg-red-50 transition-colors">Reject</button>

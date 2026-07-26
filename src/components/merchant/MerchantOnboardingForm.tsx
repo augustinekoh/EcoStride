@@ -12,8 +12,17 @@ export const MerchantOnboardingForm: React.FC = () => {
     category: 'Food & Beverage',
     menuLink: '',
     subscriptionPlan: 'RM100/month',
-    offers: '',
-    location: [103.6400, 1.5600] as [number, number]
+    location: [103.6400, 1.5600] as [number, number],
+    vouchers: [{
+      id: Date.now().toString(),
+      name: '',
+      desc: '',
+      price: 100,
+      stock: 50,
+      icon: '🎟️',
+      category: 'Vouchers',
+      profileShow: true
+    }]
   });
   
   const [viewState, setViewState] = useState({
@@ -73,8 +82,14 @@ export const MerchantOnboardingForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (formData.vouchers.length === 0 || !formData.vouchers[0].name) {
+      setError("You must create at least one Point Store voucher.");
+      return;
+    }
+    
     try {
       await addDoc(collection(db, 'applications'), {
+        type: 'new',
         ...formData,
         merchantId: user.uid,
         merchantEmail: user.email,
@@ -100,10 +115,10 @@ export const MerchantOnboardingForm: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col p-8 pt-24 bg-slate-100 overflow-y-auto">
-      <div className="max-w-2xl mx-auto w-full bg-white rounded-3xl border-comic shadow-comic p-8">
-        <h1 className="text-3xl font-black text-slate-900 mb-2">Merchant Onboarding</h1>
-        <p className="text-slate-500 font-bold mb-6">Join EcoStride and drive green foot traffic to your store.</p>
+    <div className="w-full h-full flex flex-col p-8 pt-24 bg-[#faf9f6] overflow-y-auto">
+      <div className="max-w-2xl mx-auto w-full bg-white rounded-3xl border-4 border-[#1d3539] shadow-[8px_8px_0px_0px_#1d3539] p-8 mb-20">
+        <h1 className="text-3xl font-black text-[#1d3539] mb-2 uppercase tracking-tight drop-shadow-[2px_2px_0px_#80abb1]">Merchant Onboarding</h1>
+        <p className="text-[#5496a2] font-bold mb-6">Join EcoStride and drive green foot traffic to your store.</p>
         
         {error && <div className="bg-red-100 p-3 rounded-lg text-red-700 font-bold mb-4">{error}</div>}
 
@@ -125,15 +140,61 @@ export const MerchantOnboardingForm: React.FC = () => {
             <input type="url" placeholder="https://..." className="w-full border-2 border-slate-900 rounded-xl px-4 py-2 font-bold" value={formData.menuLink} onChange={(e) => setFormData({...formData, menuLink: e.target.value})} />
           </div>
           <div>
-            <label className="block font-bold text-sm mb-1">Subscription Plan</label>
-            <select className="w-full border-2 border-slate-900 rounded-xl px-4 py-2 font-bold bg-white" value={formData.subscriptionPlan} onChange={(e) => setFormData({...formData, subscriptionPlan: e.target.value})}>
+            <label className="block font-bold text-sm mb-1 text-[#1d3539]">Subscription Plan</label>
+            <select className="w-full border-2 border-[#1d3539] rounded-xl px-4 py-2 font-bold bg-white" value={formData.subscriptionPlan} onChange={(e) => setFormData({...formData, subscriptionPlan: e.target.value})}>
               <option>RM100/month</option>
               <option>RM1000/year (Save RM200)</option>
             </select>
           </div>
-          <div>
-            <label className="block font-bold text-sm mb-1">Discount / Voucher Offered</label>
-            <input required type="text" placeholder="e.g. 30% OFF for EcoStride Riders" className="w-full border-2 border-slate-900 rounded-xl px-4 py-2 font-bold" value={formData.offers} onChange={(e) => setFormData({...formData, offers: e.target.value})} />
+
+          <div className="pt-6 border-t-2 border-slate-100 mt-6">
+            <h2 className="text-xl font-black text-[#1d3539] mb-2 uppercase">🎁 Initial Point Store Voucher</h2>
+            <p className="text-sm font-bold text-[#5496a2] mb-4">You must create at least one voucher for users to redeem using their EcoCoins.</p>
+            
+            <div className="bg-[#e9efce] p-4 rounded-xl border-2 border-[#1d3539] space-y-3">
+              <div>
+                <label className="block font-bold text-sm mb-1">Voucher Name</label>
+                <input required type="text" placeholder="e.g. Free Coffee" className="w-full border-2 border-[#1d3539] rounded-lg px-3 py-2 font-bold bg-white" value={formData.vouchers[0].name} onChange={(e) => {
+                  const newVouchers = [...formData.vouchers];
+                  newVouchers[0].name = e.target.value;
+                  setFormData({...formData, vouchers: newVouchers});
+                }} />
+              </div>
+              <div>
+                <label className="block font-bold text-sm mb-1">Description</label>
+                <input required type="text" placeholder="e.g. Valid for all regular sized coffees" className="w-full border-2 border-[#1d3539] rounded-lg px-3 py-2 font-bold bg-white" value={formData.vouchers[0].desc} onChange={(e) => {
+                  const newVouchers = [...formData.vouchers];
+                  newVouchers[0].desc = e.target.value;
+                  setFormData({...formData, vouchers: newVouchers});
+                }} />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block font-bold text-sm mb-1">Price (Coins)</label>
+                  <input required type="number" className="w-full border-2 border-[#1d3539] rounded-lg px-3 py-2 font-bold bg-white" value={formData.vouchers[0].price} onChange={(e) => {
+                    const newVouchers = [...formData.vouchers];
+                    newVouchers[0].price = Number(e.target.value);
+                    setFormData({...formData, vouchers: newVouchers});
+                  }} />
+                </div>
+                <div className="flex-1">
+                  <label className="block font-bold text-sm mb-1">Stock Quantity</label>
+                  <input required type="number" className="w-full border-2 border-[#1d3539] rounded-lg px-3 py-2 font-bold bg-white" value={formData.vouchers[0].stock} onChange={(e) => {
+                    const newVouchers = [...formData.vouchers];
+                    newVouchers[0].stock = Number(e.target.value);
+                    setFormData({...formData, vouchers: newVouchers});
+                  }} />
+                </div>
+                <div className="w-20">
+                  <label className="block font-bold text-sm mb-1 text-center">Icon</label>
+                  <input required type="text" className="w-full border-2 border-[#1d3539] rounded-lg px-3 py-2 font-bold bg-white text-center" value={formData.vouchers[0].icon} onChange={(e) => {
+                    const newVouchers = [...formData.vouchers];
+                    newVouchers[0].icon = e.target.value;
+                    setFormData({...formData, vouchers: newVouchers});
+                  }} />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="pt-4 border-t-2 border-slate-100">
@@ -165,7 +226,7 @@ export const MerchantOnboardingForm: React.FC = () => {
             <p className="text-xs font-bold text-slate-500 mt-1 text-center">Drag the pin or click on the map to fine-tune your location.</p>
           </div>
           
-          <button type="submit" className="w-full bg-brand-green hover:bg-green-400 border-2 border-slate-900 py-4 rounded-full font-black text-lg tracking-wide shadow-comic-hover active:translate-y-1 active:shadow-none transition-all mt-6">
+          <button type="submit" className="w-full bg-[#5496a2] text-white hover:bg-[#80abb1] border-2 border-[#1d3539] py-4 rounded-full font-black text-lg tracking-wide shadow-[4px_4px_0px_0px_#1d3539] active:translate-y-1 active:shadow-none transition-all mt-6 uppercase">
             Submit Application
           </button>
         </form>

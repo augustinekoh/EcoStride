@@ -16,6 +16,7 @@ import routesData from '../../mock/routes.json';
 import territoriesData from '../../mock/territories.json';
 import leaderboardData from '../../mock/leaderboard.json';
 import { CreateSignpostModal } from './CreateSignpostModal';
+import { DraggableMapWidget } from './DraggableMapWidget';
 import { PointsStoreModal } from '../modals/PointsStoreModal';
 
 export const MapView: React.FC = () => {
@@ -40,6 +41,49 @@ export const MapView: React.FC = () => {
   const [activeTree, setActiveTree] = useState<any | null>(null);
   const [showNavPrompt, setShowNavPrompt] = useState(true);
   const [isFabOpen, setIsFabOpen] = useState(false);
+  const [fabOffset, setFabOffset] = useState({ x: 0, y: 0 });
+  const [isFabDragging, setIsFabDragging] = useState(false);
+  const fabDragRef = useRef<{ startX: number; startY: number; initX: number; initY: number } | null>(null);
+
+  const handleFabDragStart = (e: React.PointerEvent) => {
+    fabDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: fabOffset.x,
+      initY: fabOffset.y
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleFabDragMove = (e: React.PointerEvent) => {
+    if (!fabDragRef.current) return;
+    
+    // Only set dragging if we've moved a bit
+    if (!isFabDragging && (Math.abs(e.clientX - fabDragRef.current.startX) > 3 || Math.abs(e.clientY - fabDragRef.current.startY) > 3)) {
+      setIsFabDragging(true);
+    }
+    
+    const dx = e.clientX - fabDragRef.current.startX;
+    const dy = e.clientY - fabDragRef.current.startY;
+    setFabOffset({
+      x: fabDragRef.current.initX + dx,
+      y: fabDragRef.current.initY + dy
+    });
+  };
+
+  const handleFabDragEnd = (e: React.PointerEvent) => {
+    if (fabDragRef.current) {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      fabDragRef.current = null;
+      setTimeout(() => setIsFabDragging(false), 50);
+    }
+  };
+
+  const handleFabClick = () => {
+    if (!isFabDragging) {
+      setIsFabOpen(!isFabOpen);
+    }
+  };
 
   const [viewState, setViewState] = useState<ViewState>({
     longitude: 103.6400,
@@ -219,8 +263,8 @@ export const MapView: React.FC = () => {
         setIsPlantingMode(false);
         return;
       }
-      if (userCoins >= 100) {
-        deductCoins(100);
+      if (userCoins >= 150) {
+        deductCoins(150);
         const treeId = `tree-${Date.now()}`;
         await setDoc(doc(db, 'trees', treeId), {
           location: [e.lngLat.lng, e.lngLat.lat],
@@ -273,7 +317,7 @@ export const MapView: React.FC = () => {
 
   // Fetch autocomplete results from Mapbox
   useEffect(() => {
-    if (!searchQuery || currentMode === 'demo' || searchQuery.length < 2) {
+    if (!searchQuery || searchQuery.length < 2) {
       setSearchResults([]);
       return;
     }
@@ -322,7 +366,7 @@ export const MapView: React.FC = () => {
 
   const handleDeleteTree = async (treeId: string) => {
     await deleteDoc(doc(db, 'trees', treeId));
-    addCoins(100); // Refund
+    addCoins(150); // Refund
     setActiveTree(null);
   };
 
@@ -332,15 +376,15 @@ export const MapView: React.FC = () => {
       {true && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 w-11/12 max-w-sm">
           <div className="relative">
-            <form onSubmit={handleUserSearch} className="flex gap-2 bg-white p-1.5 rounded-full border-2 border-slate-900 shadow-comic transition-all focus-within:-translate-y-1 relative z-50">
+            <form onSubmit={handleUserSearch} className="flex gap-2 bg-white p-1.5 rounded-full border-2 border-[#1d3539] shadow-md transition-all focus-within:-translate-y-1 relative z-50">
               <input 
                 type="text" 
                 placeholder="Search destination..." 
-                className="flex-1 bg-transparent px-4 font-bold text-slate-900 focus:outline-none"
+                className="flex-1 bg-transparent px-4 font-bold text-[#1d3539] focus:outline-none"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <button type="submit" className="bg-brand-green p-2 rounded-full border-2 border-slate-900 hover:bg-green-400">
+              <button type="submit" className="bg-[#5496a2] text-white p-2 rounded-full border-2 border-[#1d3539] hover:bg-[#80abb1]">
                 {isSearching ? '⏳' : '🔍'}
               </button>
             </form>
@@ -494,17 +538,18 @@ export const MapView: React.FC = () => {
             key={m.id} 
             longitude={m.location[0]} 
             latitude={m.location[1]} 
-            anchor="bottom" 
+            anchor="bottom"
             onClick={(e) => {
               e.originalEvent.stopPropagation();
               handleMerchantClick(m);
             }}
+            style={{ zIndex: selectedMerchant?.id === m.id ? 10 : 1 }}
           >
-            <div className={`w-10 h-10 rounded-full border-comic flex items-center justify-center text-xl cursor-pointer transition-colors ${selectedMerchant?.id === m.id ? 'bg-brand-orange animate-bounce' : 'bg-brand-yellow hover:bg-brand-green'}`}>
+            <div className={`w-12 h-12 rounded-full border-2 border-[#1d3539] shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center text-2xl cursor-pointer transition-all ${selectedMerchant?.id === m.id ? 'bg-[#fff4d6] animate-bounce scale-110' : 'bg-white hover:bg-[#e9efce]'}`}>
               {m.icon || '🏪'}
             </div>
             {m.offers && (
-              <div className="absolute top-[-30px] left-1/2 -translate-x-1/2 whitespace-nowrap bg-brand-orange text-white text-xs font-bold px-2 py-1 rounded-full border border-slate-900 shadow-comic">
+              <div className="absolute top-[-36px] left-1/2 -translate-x-1/2 whitespace-nowrap bg-[#5496a2] text-white text-xs font-black px-3 py-1.5 rounded-xl border border-[#1d3539] shadow-md z-10">
                 {m.offers}
               </div>
             )}
@@ -557,7 +602,7 @@ export const MapView: React.FC = () => {
                   onClick={() => handleDeleteTree(activeTree.id)}
                   className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-lg text-xs"
                 >
-                  Recall Tree (Refund 100)
+                  Recall Tree (Refund 150)
                 </button>
               ) : (
                 <p className="text-xs text-slate-500">Planted a tree for the territory!</p>
@@ -568,13 +613,13 @@ export const MapView: React.FC = () => {
 
         {/* Player Avatar */}
         <Marker longitude={currentCoordinate[0]} latitude={currentCoordinate[1]} anchor="center" style={{ transition: 'all 50ms linear' }}>
-          <div className="relative">
-            <div className="w-6 h-6 bg-brand-green border-2 border-slate-900 rounded-full shadow-lg z-10 relative"></div>
+          <div className="relative flex items-center justify-center">
+            <div className="w-5 h-5 bg-[#5496a2] border-[3px] border-[#1d3539] rounded-full shadow-lg z-10 relative"></div>
             {currentMode === 'demo' && demoProgress > 0 && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-brand-green rounded-full opacity-30 animate-ping"></div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-[#5496a2] rounded-full opacity-30 animate-ping"></div>
             )}
             {(currentMode === 'explore' || currentMode === 'demo') && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-brand-blue rounded-full opacity-30 animate-ping"></div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-[#5496a2] rounded-full opacity-30 animate-ping"></div>
             )}
           </div>
         </Marker>
@@ -595,7 +640,10 @@ export const MapView: React.FC = () => {
       )}
 
       {/* Unified Radial FAB (Frosted Glass) */}
-      <div className="absolute bottom-32 right-8 flex flex-col items-center justify-end z-50">
+      <div 
+        className="absolute bottom-32 right-8 flex flex-col items-center justify-end z-50 touch-none"
+        style={{ transform: `translate(${fabOffset.x}px, ${fabOffset.y}px)` }}
+      >
         
         {/* Expanded Options */}
         <div className={`flex flex-col items-center gap-4 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isFabOpen ? 'opacity-100 translate-y-0 mb-4' : 'opacity-0 translate-y-10 pointer-events-none mb-0'}`}>
@@ -626,24 +674,28 @@ export const MapView: React.FC = () => {
             >
               🌳
             </button>
-            <div className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap bg-slate-900 text-white text-xs font-bold px-2 py-1 rounded-full flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
-              <span>Plant Tree</span>
-              <span className="text-[10px] text-brand-yellow">100 Coins</span>
+            <div className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap bg-white text-slate-900 border border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] text-xs font-black px-3 py-1.5 rounded-xl flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
+              <span>Plant Tree for {user?.guildId && user.guildId !== 'None' ? user.guildId : 'Your Guild'}</span>
+              <span className="text-[10px] text-brand-green font-bold flex items-center gap-1 mt-0.5"><span className="w-1.5 h-1.5 rounded-full bg-brand-green"></span>150 Coins</span>
             </div>
           </div>
         </div>
 
-        {/* Main Frosted Glass FAB with EcoStride Logo (Leaf) */}
+        {/* Main Dreamy Leaf FAB */}
         <button 
-          onClick={() => setIsFabOpen(!isFabOpen)}
-          className={`w-16 h-16 rounded-full bg-white/80 backdrop-blur-md border-2 border-slate-900 flex items-center justify-center transition-all duration-300 hover:bg-white active:scale-95 z-10 relative ${isFabOpen ? 'shadow-[2px_2px_0px_0px_#0f172a] translate-y-1 translate-x-1' : 'shadow-[6px_6px_0px_0px_#0f172a]'}`}
+          onPointerDown={handleFabDragStart}
+          onPointerMove={handleFabDragMove}
+          onPointerUp={handleFabDragEnd}
+          onPointerCancel={handleFabDragEnd}
+          onClick={handleFabClick}
+          className={`w-16 h-16 rounded-full bg-gradient-to-br from-white/80 via-emerald-50/70 to-teal-100/60 backdrop-blur-xl border border-white/60 flex items-center justify-center transition-all duration-500 hover:scale-105 hover:bg-white/90 hover:shadow-[0_0_30px_rgba(52,211,153,0.5)] active:scale-95 z-10 relative cursor-grab active:cursor-grabbing ${isFabOpen ? 'shadow-[0_0_40px_rgba(52,211,153,0.6)] rotate-180' : 'shadow-[0_8px_32px_rgba(15,23,42,0.12),inset_0_2px_4px_rgba(255,255,255,0.8)]'}`}
         >
-          <div className="w-12 h-12 rounded-full bg-brand-green border-2 border-slate-900 flex items-center justify-center text-slate-900 overflow-hidden relative">
-            <div className={`absolute transition-all duration-300 ease-in-out ${isFabOpen ? 'scale-0 opacity-0 rotate-90' : 'scale-100 opacity-100 rotate-0'}`}>
-              <Leaf size={24} strokeWidth={2.5} className="fill-brand-green animate-pulse" />
+          <div className="w-[50px] h-[50px] rounded-full bg-gradient-to-tr from-emerald-400 to-teal-300 shadow-[inset_0_-2px_6px_rgba(0,0,0,0.1),0_4px_10px_rgba(52,211,153,0.4)] flex items-center justify-center text-white overflow-hidden relative">
+            <div className={`absolute transition-all duration-500 ease-in-out ${isFabOpen ? 'scale-0 opacity-0 rotate-90' : 'scale-100 opacity-100 rotate-0'}`}>
+              <Leaf size={24} strokeWidth={2.5} className="text-white drop-shadow-sm filter animate-[pulse_3s_ease-in-out_infinite]" />
             </div>
-            <div className={`absolute transition-all duration-300 ease-in-out ${isFabOpen ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-90'}`}>
-              <X size={26} strokeWidth={3} />
+            <div className={`absolute transition-all duration-500 ease-in-out ${isFabOpen ? 'scale-100 opacity-100 rotate-180' : 'scale-0 opacity-0 -rotate-90'}`}>
+              <X size={26} strokeWidth={2.5} className="text-white drop-shadow-sm" />
             </div>
           </div>
         </button>
@@ -659,42 +711,42 @@ export const MapView: React.FC = () => {
 
       {/* Merchant Confirmation Overlay */}
       {selectedMerchant && !activeRouteData && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#faf9f6] border-2 border-slate-900 shadow-comic p-6 rounded-3xl flex flex-col items-center gap-4 z-40 w-[340px] sm:w-[400px] text-center animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#fff4d6] border-2 border-[#80abb1] shadow-2xl p-6 rounded-3xl flex flex-col items-center gap-4 z-40 w-[340px] sm:w-[400px] text-center animate-in slide-in-from-bottom-10 fade-in duration-300">
           <button 
             onClick={() => setSelectedMerchant(null)} 
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 transition-colors bg-white rounded-full p-1 border-2 border-slate-900 shadow-[2px_2px_0px_#0f172a] hover:shadow-none hover:translate-y-0.5 hover:translate-x-0.5"
+            className="absolute top-4 right-4 text-[#80abb1] hover:text-[#1d3539] transition-colors bg-white/50 backdrop-blur rounded-full p-2 hover:bg-white"
           >
-            <X size={18} strokeWidth={3} />
+            <X size={20} strokeWidth={3} />
           </button>
 
           <div className="mt-2 w-full">
-            <div className="w-16 h-16 bg-brand-yellow border-2 border-slate-900 shadow-comic rounded-2xl mx-auto flex items-center justify-center text-3xl mb-3">
+            <div className="w-20 h-20 bg-white border-2 border-[#5496a2] shadow-inner rounded-3xl mx-auto flex items-center justify-center text-4xl mb-4">
               {selectedMerchant.icon || '🏪'}
             </div>
-            <h3 className="text-2xl font-black text-slate-900 leading-tight">{selectedMerchant.storeName}</h3>
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mt-1">{selectedMerchant.category}</p>
+            <h3 className="text-2xl font-black text-[#1d3539] leading-tight">{selectedMerchant.storeName}</h3>
+            <p className="text-sm font-bold text-[#5496a2] uppercase tracking-widest mt-1">{selectedMerchant.category}</p>
             
             {selectedMerchant.offers && (
-              <div className="bg-brand-orange text-white text-xs font-bold px-3 py-1.5 rounded-lg mt-3 inline-block shadow-sm uppercase tracking-wider border-2 border-slate-900">
+              <div className="bg-[#5496a2] text-white text-xs font-bold px-4 py-2 rounded-xl mt-4 inline-block shadow-sm uppercase tracking-wider">
                 🎁 {selectedMerchant.offers}
               </div>
             )}
             
             {selectedMerchant.menuLink && (
-              <div className="mt-4 bg-slate-100 rounded-lg p-2 border-2 border-slate-200">
-                <a href={selectedMerchant.menuLink} target="_blank" rel="noreferrer" className="text-brand-blue text-xs font-bold hover:text-blue-500 flex items-center justify-center gap-1">
-                  View Menu / Details <ExternalLink size={14} />
+              <div className="mt-5 bg-white/60 rounded-xl p-3 border border-white">
+                <a href={selectedMerchant.menuLink} target="_blank" rel="noreferrer" className="text-[#5496a2] text-sm font-bold hover:text-[#1d3539] flex items-center justify-center gap-2">
+                  View Menu / Details <ExternalLink size={16} />
                 </a>
               </div>
             )}
           </div>
           
-          <div className="flex gap-3 w-full mt-2">
-            <button onClick={() => setMerchantStoreFilter(selectedMerchant.id)} className="flex-1 bg-brand-pink border-2 border-slate-900 text-white font-black py-3 rounded-xl shadow-[4px_4px_0px_#0f172a] hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
-              <Gift size={16} /> Vouchers
+          <div className="flex gap-3 w-full mt-3">
+            <button onClick={() => setMerchantStoreFilter(selectedMerchant.id)} className="flex-1 bg-[#fff4d6] border-2 border-[#80abb1] text-[#1d3539] font-black py-3 rounded-xl hover:bg-[#e9efce] hover:border-[#5496a2] transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
+              <Gift size={18} /> Vouchers
             </button>
-            <button onClick={handleStartNavigation} className="flex-1 bg-brand-green border-2 border-slate-900 text-slate-900 font-black py-3 rounded-xl shadow-[4px_4px_0px_#0f172a] hover:translate-y-1 hover:translate-x-1 hover:shadow-none transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
-              <MapPin size={16} /> Go Here
+            <button onClick={handleStartNavigation} className="flex-1 bg-[#5496a2] text-white font-black py-3 rounded-xl shadow-md hover:-translate-y-1 hover:shadow-lg transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
+              <MapPin size={18} /> Go Here
             </button>
           </div>
         </div>
@@ -756,6 +808,9 @@ export const MapView: React.FC = () => {
           onClose={() => setMerchantStoreFilter(null)} 
         />
       )}
+
+      {/* Floating Left Widget */}
+      <DraggableMapWidget />
     </div>
   );
 };

@@ -1,7 +1,12 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useDemoStore } from './stores/useDemoStore';
-import { HeaderBar } from './components/controls/HeaderBar';
+import { BottomNavBar } from './components/controls/BottomNavBar';
+import { ProfileView } from './components/profile/ProfileView';
+import { SettingsView } from './components/profile/SettingsView';
+import { CityView } from './components/city/CityView';
+import { LandingPage } from './components/landing/LandingPage';
+import { MerchantDashboard } from './components/merchant/MerchantDashboard';
 import { RouteSimulator } from './components/controls/RouteSimulator';
 import { MapView } from './components/map/MapView';
 import { ImpactReportModal } from './components/modals/ImpactReportModal';
@@ -12,18 +17,30 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { useAuthStore } from './stores/useAuthStore';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { useUserStore } from './stores/useUserStore';
+import { useMailStore } from './stores/useMailStore';
 
 function PublicApp() {
   const { activeView, isWaitingForApproval } = useDemoStore();
   const { user } = useAuthStore();
 
+  if (!user || isWaitingForApproval) {
+    return (
+      <div className="w-screen h-screen overflow-hidden relative text-slate-900 font-sans transition-colors duration-500">
+        <AuthModal />
+      </div>
+    );
+  }
+
   return (
-    <div className="w-screen h-screen overflow-hidden bg-brand-cream relative text-slate-900 font-sans">
-      {(!user || isWaitingForApproval) && <AuthModal />}
-      <HeaderBar />
+    <div className="w-screen h-screen overflow-hidden relative text-slate-900 font-sans transition-colors duration-500">
+      {activeView !== 'settings' && <BottomNavBar />}
       
+      {activeView === 'landing' && <LandingPage />}
+      {activeView === 'profile' && <ProfileView />}
+      {activeView === 'settings' && <SettingsView />}
+      {activeView === 'city' && <CityView />}
       {activeView === 'map' && (
         <>
           <MapView />
@@ -31,7 +48,13 @@ function PublicApp() {
           <ImpactReportModal />
         </>
       )}
+      {activeView === 'merchant_dashboard' && <MerchantDashboard />}
       {activeView === 'merchant_onboarding' && <MerchantOnboardingForm />}
+      {activeView === 'group' && (
+        <div className="h-full w-full bg-brand-cream flex items-center justify-center p-8 text-center">
+          <h2 className="text-3xl font-black uppercase text-slate-400">Group System Coming Soon!</h2>
+        </div>
+      )}
     </div>
   );
 }
@@ -84,6 +107,7 @@ function App() {
     setPersistence(auth, browserSessionPersistence).catch(console.error);
     
     let unsubUserDoc: any = null;
+    let unsubMails: any = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -95,6 +119,28 @@ function App() {
               userCoins: data.coins || 0,
               totalCarbonSaved: data.totalCarbonSaved || 0,
               totalDistanceKm: data.totalDistanceKm || 0
+            });
+
+            // Mailbox listener
+            const userGuildId = data.guildId && data.guildId !== 'None' ? data.guildId : null;
+            const readMails = data.readMails || [];
+            
+            const q = query(collection(db, 'mail'), orderBy('createdAt', 'desc'));
+            unsubMails = onSnapshot(q, (snapshot) => {
+              const fetchedMails = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+              const filtered = fetchedMails.filter((mail: any) => {
+                if (mail.expiresForNewUsers && data.createdAt) {
+                  const userCreatedTime = new Date(data.createdAt).getTime();
+                  if (userCreatedTime > mail.createdAt) return false;
+                }
+                const role = useAuthStore.getState().role;
+                if (mail.recipientType === 'all') return true;
+                if (mail.recipientType === 'user' && mail.recipientId === user.uid) return true;
+                if (mail.recipientType === 'merchant_all' && role === 'merchant') return true;
+                if (mail.recipientType === 'guild' && userGuildId && mail.recipientId === userGuildId) return true;
+                return false;
+              });
+              useMailStore.getState().setMailsData(filtered, readMails);
             });
           }
         });
@@ -144,15 +190,17 @@ function App() {
           }
         }
       } else {
-        if (unsubUserDoc) unsubUserDoc();
         setUser(null, null);
         setUserData({ userCoins: 0, totalCarbonSaved: 0, totalDistanceKm: 0 });
+        if (unsubUserDoc) unsubUserDoc();
+        if (unsubMails) unsubMails();
       }
       setLoading(false);
     });
     return () => {
       unsubscribe();
       if (unsubUserDoc) unsubUserDoc();
+      if (unsubMails) unsubMails();
     };
   }, [setUser, setLoading, setUserData]);
 

@@ -20,16 +20,35 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
       const fetchUsers = async () => {
         try {
           const snapshot = await getDocs(collection(db, 'users'));
+          
+          const getMonday = (d: Date) => {
+            const date = new Date(d);
+            const day = date.getDay();
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+            date.setDate(diff);
+            date.setHours(0,0,0,0);
+            return date;
+          };
+          
+          const today = new Date();
+          const startOfWeek = getMonday(today);
+          const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
           const users = snapshot.docs.map(doc => {
             const data = doc.data();
             const emailSum = (data.email || '').split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+            
+            const history = data.activityHistory || [];
+            const weeklyDist = history.filter((h: any) => new Date(h.date) >= startOfWeek).reduce((sum: number, h: any) => sum + h.distance, 0);
+            const monthlyDist = history.filter((h: any) => new Date(h.date) >= startOfMonth).reduce((sum: number, h: any) => sum + h.distance, 0);
+            
             return {
               id: doc.id,
               name: data.email ? data.email.split('@')[0] : 'Unknown Player',
               avatar: '👤',
               location: [103.64 + (emailSum % 100) * 0.0001, 1.56 + (emailSum % 100) * 0.0001],
-              weeklyPoints: data.coins || 0,
-              monthlyPoints: data.coins || 0,
+              weeklyPoints: Math.floor(weeklyDist * 50),
+              monthlyPoints: Math.floor(monthlyDist * 50),
               totalMileageKm: data.totalDistanceKm || 0,
               treesPlanted: 0, // Fallback for sample
               guildName: data.guildId && data.guildId !== 'None' ? data.guildId : 'Explorer',
@@ -81,26 +100,25 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
           <div 
             key={player.id} 
             onClick={() => handlePlayerClick(player)}
-            className="flex items-center gap-3 bg-white/80 backdrop-blur-md p-3 rounded-2xl border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] cursor-pointer hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_#0f172a] transition-all"
+            className="flex items-center gap-4 bg-[#e9efce] p-4 rounded-2xl transition-all hover:shadow-md hover:-translate-y-1 cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-slate-900 border-2 border-slate-900 bg-brand-yellow">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-white bg-[#5496a2] shadow-sm">
               {idx + 1}
             </div>
-            <div className="w-12 h-12 rounded-full border-2 border-slate-900 bg-slate-100 flex items-center justify-center text-2xl">
+            <div className="w-12 h-12 rounded-full bg-[#fff4d6] flex items-center justify-center text-2xl shadow-inner">
               {player.avatar}
             </div>
             <div className="flex-1 overflow-hidden">
-              <h3 className="font-bold text-slate-900 flex items-center gap-2 truncate">
+              <h3 className="font-bold text-[#1d3539] text-lg truncate">
                 {player.name}
-                {player.isRisingStar && activeTab === 'weekly' && <span className="bg-brand-orange text-white text-[10px] px-1.5 py-0.5 rounded-full uppercase shrink-0">Rising</span>}
               </h3>
-              <p className="text-xs font-bold text-slate-500 truncate">{player.guildName}</p>
+              <p className="text-sm font-bold text-[#5496a2] truncate">{player.guildName}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-black text-brand-green text-lg">
-                {activeTab === 'weekly' ? player.weeklyPoints : activeTab === 'monthly' ? player.monthlyPoints : player.totalMileageKm}
+              <p className="font-black text-[#1d3539] text-xl">
+                {activeTab === 'weekly' ? player.weeklyPoints : activeTab === 'monthly' ? player.monthlyPoints : Number(player.totalMileageKm).toFixed(2)}
               </p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">
+              <p className="text-xs font-bold text-[#80abb1] uppercase tracking-wider">
                 {activeTab === 'total' ? 'KM' : 'PTS'}
               </p>
             </div>
@@ -120,26 +138,26 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
     return (
       <div className="space-y-4">
         {sampleGuilds.map((guild, index) => (
-          <div key={guild.id} className="bg-slate-700/50 rounded-2xl p-4 flex items-center border-2 border-slate-700 hover:border-brand-green transition-colors cursor-pointer">
-            <div className="w-12 text-center text-xl font-black text-brand-yellow">
+          <div key={guild.id} className="bg-[#e9efce] rounded-2xl p-4 flex items-center transition-all hover:shadow-md hover:-translate-y-1 cursor-pointer">
+            <div className="w-10 text-center text-xl font-black text-[#5496a2]">
               #{index + 1}
             </div>
-            <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-2xl border-2 border-slate-600 mr-4">
+            <div className="w-12 h-12 bg-[#fff4d6] rounded-xl flex items-center justify-center text-2xl mr-4 shadow-inner">
               🛡️
             </div>
             <div className="flex-1">
-              <h4 className="font-bold text-white text-lg">{guild.name}</h4>
-              <p className="text-xs text-slate-400">{guild.members} Active Members</p>
+              <h4 className="font-bold text-[#1d3539] text-lg">{guild.name}</h4>
+              <p className="text-sm font-bold text-[#5496a2]">{guild.members} Active Members</p>
             </div>
             <div className="text-right">
-              <div className="font-black text-brand-green text-xl flex items-center gap-1">
+              <div className="font-black text-[#1d3539] text-xl flex items-center justify-end gap-1">
                 {guild.treesPlanted} 🌳
               </div>
-              <div className="text-xs text-slate-400 font-bold uppercase">Trees Planted</div>
+              <div className="text-xs text-[#80abb1] font-bold uppercase tracking-wider">Trees Planted</div>
             </div>
           </div>
         ))}
-        <div className="text-center text-sm font-bold text-slate-500 mt-4">
+        <div className="text-center text-sm font-bold text-[#5496a2] mt-6">
           Guild system and territory wars are coming in the next update!
         </div>
       </div>
@@ -147,43 +165,45 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
-      <div className="bg-brand-cream border-4 border-slate-900 shadow-comic rounded-3xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-90 duration-300 relative">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+      <div className="bg-[#fff4d6] rounded-[2rem] w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-90 duration-300 relative shadow-2xl border border-white/40">
         
-        <div className="bg-slate-900 p-4 flex justify-between items-center text-white shrink-0">
-          <div className="flex items-center gap-2">
-            <Trophy className="text-brand-yellow" size={24} />
-            <h2 className="text-xl font-black uppercase tracking-wider text-brand-yellow">Leaderboards</h2>
+        <div className="bg-[#5496a2] p-5 flex justify-between items-center text-white shrink-0 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#fff4d6]/20 p-2 rounded-xl">
+              <Trophy className="text-[#fff4d6]" size={24} />
+            </div>
+            <h2 className="text-xl font-black uppercase tracking-wider text-white">Leaderboards</h2>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-slate-700 rounded-full transition-colors">
-            <X size={24} />
+          <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+            <X size={20} />
           </button>
         </div>
 
-        <div className="flex p-2 bg-slate-800 gap-1 overflow-x-auto no-scrollbar shrink-0">
+        <div className="flex p-3 bg-[#80abb1] gap-2 overflow-x-auto no-scrollbar shrink-0 shadow-inner">
           <button 
             onClick={() => setActiveTab('weekly')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeTab === 'weekly' ? 'bg-brand-green text-slate-900' : 'text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'weekly' ? 'bg-[#fff4d6] text-[#1d3539] shadow-sm' : 'text-[#e9efce] hover:text-white hover:bg-[#5496a2]/50'}`}
           >
-            <TrendingUp size={14} /> Weekly
+            <TrendingUp size={16} /> Weekly
           </button>
           <button 
             onClick={() => setActiveTab('monthly')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeTab === 'monthly' ? 'bg-brand-yellow text-slate-900' : 'text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'monthly' ? 'bg-[#fff4d6] text-[#1d3539] shadow-sm' : 'text-[#e9efce] hover:text-white hover:bg-[#5496a2]/50'}`}
           >
-            <Calendar size={14} /> Monthly Coins
+            <Calendar size={16} /> Monthly
           </button>
           <button 
             onClick={() => setActiveTab('total')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeTab === 'total' ? 'bg-brand-green text-slate-900' : 'text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'total' ? 'bg-[#fff4d6] text-[#1d3539] shadow-sm' : 'text-[#e9efce] hover:text-white hover:bg-[#5496a2]/50'}`}
           >
-            <MapIcon size={14} /> Total Distance
+            <MapIcon size={16} /> All-Time
           </button>
           <button 
             onClick={() => setActiveTab('guild')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeTab === 'guild' ? 'bg-brand-pink text-slate-900' : 'text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${activeTab === 'guild' ? 'bg-[#fff4d6] text-[#1d3539] shadow-sm' : 'text-[#e9efce] hover:text-white hover:bg-[#5496a2]/50'}`}
           >
-            <Shield size={14} /> Guild Trees
+            <Shield size={16} /> Guilds
           </button>
         </div>
 

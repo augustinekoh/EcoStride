@@ -46,23 +46,23 @@ export const ImpactReportModal: React.FC = () => {
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-brand-cream border-comic rounded-3xl p-8 max-w-md w-full shadow-[8px_8px_0px_0px_#0f172a] animate-in zoom-in duration-300">
-        <h2 className="text-3xl font-black text-center mb-6 uppercase tracking-tight text-brand-green drop-shadow-[2px_2px_0px_#0f172a]">
+      <div className="bg-[#faf9f6] border-2 border-[#1d3539] rounded-3xl p-8 max-w-md w-full shadow-[8px_8px_0px_0px_#1d3539] animate-in zoom-in duration-300">
+        <h2 className="text-3xl font-black text-center mb-6 uppercase tracking-tight text-[#1d3539] drop-shadow-[2px_2px_0px_#80abb1]">
           Journey Complete!
         </h2>
         
         <div className="space-y-4 mb-6">
-          <div className="bg-white p-4 rounded-2xl border-2 border-slate-900 flex justify-between items-center">
+          <div className="bg-white p-4 rounded-2xl border-2 border-[#1d3539] flex justify-between items-center">
             <span className="font-bold text-slate-500">Distance</span>
-            <span className="font-black text-xl">{stats.distance.toFixed(1)} km</span>
+            <span className="font-black text-xl text-[#1d3539]">{stats.distance.toFixed(1)} km</span>
           </div>
-          <div className="bg-brand-green/20 p-4 rounded-2xl border-2 border-slate-900 flex justify-between items-center">
+          <div className="bg-[#e9efce] p-4 rounded-2xl border-2 border-[#1d3539] flex justify-between items-center">
             <span className="font-bold text-slate-500">CO2 Saved</span>
-            <span className="font-black text-xl text-brand-green">{stats.carbon.toFixed(2)} kg</span>
+            <span className="font-black text-xl text-[#5496a2]">{stats.carbon.toFixed(2)} kg</span>
           </div>
-          <div className="bg-brand-yellow/20 p-4 rounded-2xl border-2 border-slate-900 flex justify-between items-center">
+          <div className="bg-[#fff4d6] p-4 rounded-2xl border-2 border-[#1d3539] flex justify-between items-center">
             <span className="font-bold text-slate-500">Coins Earned</span>
-            <span className="font-black text-xl text-brand-orange">+{stats.coins} 🪙</span>
+            <span className="font-black text-xl text-[#1d3539]">+{stats.coins} 🪙</span>
           </div>
         </div>
 
@@ -80,7 +80,7 @@ export const ImpactReportModal: React.FC = () => {
             setShowReportModal(false);
             setProgress(0);
           }}
-          className="w-full bg-brand-yellow hover:bg-yellow-300 border-2 border-slate-900 py-3 rounded-full font-black uppercase tracking-wide shadow-comic-hover active:translate-y-1 active:shadow-none transition-all"
+          className="w-full bg-[#5496a2] text-white hover:bg-[#80abb1] border-2 border-[#1d3539] py-3 rounded-full font-black uppercase tracking-wide shadow-[4px_4px_0px_0px_#1d3539] active:translate-y-1 active:shadow-none transition-all"
         >
           Claim Rewards & Continue
         </button>
