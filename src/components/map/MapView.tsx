@@ -1,0 +1,785 @@
+import React, { useRef, useEffect, useState, useMemo } from 'react';
+import Map, { Source, Layer, Marker, Popup } from 'react-map-gl/mapbox';
+import type { ViewState } from 'react-map-gl/mapbox';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { Leaf, X, ExternalLink, Gift, MapPin } from 'lucide-react';
+
+import { useDemoStore } from '../../stores/useDemoStore';
+import { useMapStore } from '../../stores/useMapStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useUserStore } from '../../stores/useUserStore';
+import { db } from '../../firebase';
+import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { MAPBOX_TOKEN, getWalkingRoute, getDistanceMeters } from '../../lib/mapboxAPI';
+import * as turf from '@turf/turf';
+import routesData from '../../mock/routes.json';
+import territoriesData from '../../mock/territories.json';
+import leaderboardData from '../../mock/leaderboard.json';
+import { CreateSignpostModal } from './CreateSignpostModal';
+import { LeaderboardModal } from '../modals/LeaderboardModal';
+import { UserMerchantModal } from '../modals/UserMerchantModal';
+import { Trophy, Store } from 'lucide-react';
+import { PointsStoreModal } from '../modals/PointsStoreModal';
+
+export const MapView: React.FC = () => {
+  const { demoProgress, currentMode, setShowReportModal } = useDemoStore();
+  const { 
+    territoryConquered, 
+    liveLocation, setLiveLocation,
+    merchants, setMerchants,
+    signposts, setSignposts,
+    activeSignpost, setActiveSignpost,
+    selectedMerchant, setSelectedMerchant,
+    activeRouteGeoJSON: mapboxRouteGeoJSON, setActiveRouteGeoJSON,
+    distanceToTarget, setDistanceToTarget,
+    flyToLocation, setFlyToLocation,
+    isPlantingMode, setIsPlantingMode,
+  } = useMapStore();
+  
+  const { userCoins, deductCoins, addCoins } = useUserStore();
+
+  const mapRef = useRef(null);
+  const [trees, setTrees] = useState<any[]>([]);
+  const [activeTree, setActiveTree] = useState<any | null>(null);
+  const [showNavPrompt, setShowNavPrompt] = useState(true);
+  const [isFabOpen, setIsFabOpen] = useState(false);
+
+  const [viewState, setViewState] = useState<ViewState>({
+    longitude: 103.6400,
+    latitude: 1.5600,
+    zoom: 15,
+    pitch: 45,
+    bearing: 0,
+    padding: { top: 0, bottom: 0, left: 0, right: 0 }
+  });
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSignpostModal, setShowSignpostModal] = useState(false);
+  const [showCongratsModal, setShowCongratsModal] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showMerchantModal, setShowMerchantModal] = useState(false);
+  const [merchantStoreFilter, setMerchantStoreFilter] = useState<string | null>(null);
+  const { user } = useAuthStore();
+
+  // Fetch real merchants from Firestore
+  useEffect(() => {
+    const unsubSignposts = onSnapshot(collection(db, 'signposts'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSignposts(data);
+    });
+
+    const unsubTrees = onSnapshot(collection(db, 'trees'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTrees(data);
+    });
+
+    const unsubMerchants = onSnapshot(collection(db, 'merchants'), (snapshot) => {
+      const ms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMerchants(ms);
+    });
+
+    return () => {
+      unsubSignposts();
+      unsubTrees();
+      unsubMerchants();
+    };
+  }, [setSignposts, setTrees, setMerchants]);
+
+  useEffect(() => {
+    if (showNavPrompt && currentMode === 'explore') {
+      const timer = setTimeout(() => setShowNavPrompt(false), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [showNavPrompt, currentMode]);
+
+  // Real-time GPS Tracking
+  useEffect(() => {
+    // We fetch GPS regardless of mode so demo mode has a starting point
+    const watchId = navigator.geolocation.watchPosition((pos) => {
+      setLiveLocation([pos.coords.longitude, pos.coords.latitude]);
+    }, (err) => console.log('GPS Error:', err), { enableHighAccuracy: true });
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [setLiveLocation]);
+
+  // Handle FlyTo requests
+  useEffect(() => {
+    if (flyToLocation && mapRef.current) {
+      (mapRef.current as any).flyTo({
+        center: flyToLocation,
+        zoom: 16,
+        duration: 2000,
+        essential: true
+      });
+      setFlyToLocation(null);
+    }
+  }, [flyToLocation, setFlyToLocation]);
+
+  // Calculate current position based on Demo Progress OR Live GPS
+  const currentCoordinate = useMemo(() => {
+    // If not demo mode, or no active route, just use liveLocation
+    if (currentMode !== 'demo' || !mapboxRouteGeoJSON) {
+      return liveLocation || [103.6400, 1.5600];
+    }
+    
+    // Auto-walk interpolation for demo mode along the real mapbox route
+    const coords = mapboxRouteGeoJSON.geometry.coordinates;
+    if (!coords || coords.length === 0) return liveLocation || [103.6400, 1.5600];
+    if (demoProgress === 0) return coords[0] as [number, number];
+    if (demoProgress >= 100) return coords[coords.length - 1] as [number, number];
+
+    const line = turf.lineString(coords);
+    const totalLength = turf.length(line, { units: 'meters' });
+    const targetDistance = (demoProgress / 100) * totalLength;
+    const currentPoint = turf.along(line, targetDistance, { units: 'meters' });
+    return currentPoint.geometry.coordinates as [number, number];
+  }, [demoProgress, currentMode, liveLocation, mapboxRouteGeoJSON]);
+
+  // Active route line up to current progress (Demo Mode visual flair)
+  const demoActiveRouteGeoJSON = useMemo(() => {
+    if (!mapboxRouteGeoJSON) return null;
+    const coords = mapboxRouteGeoJSON.geometry.coordinates;
+    if (!coords || coords.length === 0) return null;
+    
+    if (demoProgress === 0) {
+      return {
+        type: 'Feature' as const,
+        properties: {},
+        geometry: { type: 'LineString' as const, coordinates: [coords[0], coords[0]] }
+      };
+    }
+    if (demoProgress >= 100) {
+      return mapboxRouteGeoJSON;
+    }
+
+    const line = turf.lineString(coords);
+    const startPoint = turf.point(coords[0]);
+    const endPoint = turf.point(currentCoordinate);
+    
+    const sliced = turf.lineSlice(startPoint, endPoint, line);
+
+    return {
+      type: 'Feature' as const,
+      properties: {},
+      geometry: sliced.geometry
+    };
+  }, [demoProgress, currentCoordinate, mapboxRouteGeoJSON]);
+
+  const activeRouteData = currentMode === 'demo' ? demoActiveRouteGeoJSON : mapboxRouteGeoJSON;
+
+  const backgroundRouteGeoJSON = useMemo(() => {
+    if (currentMode === 'demo' && mapboxRouteGeoJSON) return mapboxRouteGeoJSON;
+    return {
+      type: 'Feature' as const,
+      properties: {},
+      geometry: { type: 'LineString' as const, coordinates: [] }
+    };
+  }, [currentMode, mapboxRouteGeoJSON]);
+
+  // Update map center when in demo mode OR when live location changes for the first time
+  useEffect(() => {
+    if (currentMode === 'demo' || (currentMode === 'explore' && liveLocation)) {
+      setViewState((prev) => ({
+        ...prev,
+        longitude: currentCoordinate[0],
+        latitude: currentCoordinate[1]
+      }));
+    }
+  }, [currentCoordinate, currentMode, liveLocation]);
+
+  const handleMerchantClick = (m: any) => {
+    setSelectedMerchant(m);
+    setActiveRouteGeoJSON(null);
+    setDistanceToTarget(null);
+  };
+
+  const handleStartNavigation = async () => {
+    if (selectedMerchant && selectedMerchant.location) {
+      const startLoc: [number, number] = liveLocation || [101.6869, 3.1390]; // KL CC fallback
+      const targetCoords: [number, number] = selectedMerchant.location;
+      const res = await getWalkingRoute(startLoc, targetCoords);
+      if (res) {
+        setActiveRouteGeoJSON({ type: 'Feature', properties: {}, geometry: res.geoJson });
+        setDistanceToTarget(parseFloat(res.distanceKm));
+        
+        if (currentMode === 'demo') {
+          useDemoStore.getState().setProgress(0);
+          useDemoStore.getState().setIsAutoPlaying(true);
+        } else {
+          // Auto-unlock if close enough (< 50 meters) and it's a real merchant (has offers)
+          const distMeters = getDistanceMeters(startLoc, targetCoords);
+          if (distMeters < 50 && selectedMerchant.offers) {
+            setShowReportModal(true);
+          }
+        }
+      }
+    }
+  };
+
+  const handleMapClick = async (e: any) => {
+    if (isPlantingMode) {
+      if (!user) {
+        alert("Please login to plant a tree!");
+        setIsPlantingMode(false);
+        return;
+      }
+      if (userCoins >= 100) {
+        deductCoins(100);
+        const treeId = `tree-${Date.now()}`;
+        await setDoc(doc(db, 'trees', treeId), {
+          location: [e.lngLat.lng, e.lngLat.lat],
+          guildId: 'Eco Warriors', // TODO: user.guildId
+          authorId: user.uid,
+          plantedAt: Date.now()
+        });
+        setIsPlantingMode(false);
+      } else {
+        alert("Not enough Eco-Coins to plant a tree! Walk more to save CO2.");
+        setIsPlantingMode(false);
+      }
+      return;
+    }
+
+    setActiveSignpost(null);
+    setActiveTree(null);
+    const customDest = {
+      id: 'custom-destination',
+      storeName: 'Custom Destination',
+      category: 'Pinned Location',
+      location: [e.lngLat.lng, e.lngLat.lat]
+    };
+    setSelectedMerchant(customDest);
+    setActiveRouteGeoJSON(null);
+    setDistanceToTarget(null);
+  };
+
+  const handleLikeSignpost = async (e: React.MouseEvent, sp: any) => {
+    e.stopPropagation();
+    if (!user) {
+      alert("Please login to give Eco Energy!");
+      return;
+    }
+    const likedByArray = sp.likedBy || [];
+    if (likedByArray.includes(user.uid)) {
+      alert("You already gave energy to this signpost! 🔋");
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'signposts', sp.id), { 
+        likes: (sp.likes || 0) + 1,
+        likedBy: [...likedByArray, user.uid]
+      });
+      setShowCongratsModal(true);
+    } catch (err) {
+      console.error('Failed to like:', err);
+    }
+  };
+
+  // Fetch autocomplete results from Mapbox
+  useEffect(() => {
+    if (!searchQuery || currentMode === 'demo' || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const proximity = `${viewState.longitude},${viewState.latitude}`;
+        const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery)}.json?proximity=${proximity}&country=MY&access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5`);
+        const data = await res.json();
+        setSearchResults(data.features || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, viewState.longitude, viewState.latitude, currentMode]);
+
+  const handleSelectSearchResult = (feature: any) => {
+    const [lng, lat] = feature.center;
+    const placeName = feature.text;
+    
+    setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat, zoom: 16 }));
+    
+    const customDest = {
+      id: 'custom-destination',
+      storeName: placeName,
+      category: feature.place_name || 'Searched Location',
+      location: [lng, lat]
+    };
+    setSelectedMerchant(customDest);
+    setActiveRouteGeoJSON(null);
+    setDistanceToTarget(null);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const handleUserSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchResults.length > 0) {
+      handleSelectSearchResult(searchResults[0]);
+    }
+  };
+
+  const handleDeleteTree = async (treeId: string) => {
+    await deleteDoc(doc(db, 'trees', treeId));
+    addCoins(100); // Refund
+    setActiveTree(null);
+  };
+
+  return (
+    <div className="relative w-full h-screen overflow-hidden bg-slate-100">
+      {/* User Search Bar */}
+      {true && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 w-11/12 max-w-sm">
+          <div className="relative">
+            <form onSubmit={handleUserSearch} className="flex gap-2 glass-card p-1.5 rounded-full border border-white/50 shadow-sm transition-all focus-within:-translate-y-1 relative z-50">
+              <input 
+                type="text" 
+                placeholder="Search destination..." 
+                className="flex-1 bg-transparent px-4 font-bold text-[var(--color-text-main)] placeholder-[var(--color-text-muted)] focus:outline-none"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <button type="submit" className="bg-[var(--color-teal-dark)] text-white p-2 rounded-full hover:bg-[var(--color-teal-mid)] shadow-sm transition-colors">
+                {isSearching ? '⏳' : '🔍'}
+              </button>
+            </form>
+            
+            {/* Autocomplete Dropdown */}
+            {searchResults.length > 0 && (
+              <div className="absolute top-12 left-0 w-full glass-card border border-white/50 shadow-md rounded-2xl mt-2 overflow-hidden z-40 flex flex-col animate-in slide-in-from-top-2">
+                {searchResults.map((feature, index) => (
+                  <button
+                    key={feature.id || index}
+                    onClick={() => handleSelectSearchResult(feature)}
+                    className="flex flex-col text-left px-4 py-3 hover:bg-white/30 border-b border-white/20 last:border-b-0 transition-colors"
+                  >
+                    <span className="font-bold text-[var(--color-text-main)] truncate">{feature.text}</span>
+                    <span className="text-xs text-[var(--color-text-muted)] truncate">{feature.place_name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Map
+        ref={mapRef}
+        {...viewState}
+        onMove={evt => setViewState(evt.viewState)}
+        onClick={handleMapClick}
+        mapStyle="mapbox://styles/mapbox/outdoors-v12"
+        mapboxAccessToken={MAPBOX_TOKEN}
+        attributionControl={false}
+      >
+        {/* Territory Polygon Layer */}
+        <Source id="territories" type="geojson" data={territoriesData as any}>
+          <Layer
+            id="territory-fill"
+            type="fill"
+            paint={{
+              'fill-color': territoryConquered
+                ? territoriesData.features[0].properties.colorConquered
+                : territoriesData.features[0].properties.colorNeutral,
+              'fill-opacity': 0.4
+            }}
+          />
+          <Layer
+            id="territory-outline"
+            type="line"
+            paint={{
+              'line-color': '#7FCA9C',
+              'line-width': 3,
+              'line-dasharray': [2, 2]
+            }}
+          />
+        </Source>
+
+        {/* Background Route */}
+        <Source id="route-bg" type="geojson" data={backgroundRouteGeoJSON}>
+          <Layer
+            id="route-bg-line"
+            type="line"
+            paint={{
+              'line-color': '#CCE3C5',
+              'line-width': 4,
+              'line-dasharray': [1, 2]
+            }}
+          />
+        </Source>
+
+        {/* Active Route */}
+        {activeRouteData && (
+          <Source id="route-active" type="geojson" data={activeRouteData}>
+            <Layer
+              id="route-active-line"
+              type="line"
+              paint={{
+                'line-color': '#99D2A9',
+                'line-width': 8
+              }}
+              layout={{
+                'line-cap': 'round',
+                'line-join': 'round'
+              }}
+            />
+            <Layer
+              id="route-active-outline"
+              type="line"
+              paint={{
+                'line-color': '#7FCA9C',
+                'line-width': 12,
+                'line-opacity': 0.4,
+              }}
+              layout={{
+                'line-cap': 'round',
+                'line-join': 'round'
+              }}
+              beforeId="route-active-line"
+            />
+          </Source>
+        )}
+
+        {/* Real Signposts */}
+        {signposts.map((sp) => (
+          <Marker 
+            key={sp.id} 
+            longitude={sp.location[0]} 
+            latitude={sp.location[1]} 
+            anchor="bottom"
+            onClick={(e) => {
+              e.originalEvent.stopPropagation();
+              setActiveSignpost(sp);
+            }}
+          >
+            <div className="glass-active px-2 py-1 rounded-t-xl rounded-br-xl border border-white/50 shadow-sm cursor-pointer hover:-translate-y-1 transition-transform animate-in zoom-in-95 duration-200">
+              <span className="text-xl">{sp.emoji}</span>
+            </div>
+          </Marker>
+        ))}
+
+        {/* Signpost Popup */}
+        {activeSignpost && (
+          <Popup
+            longitude={activeSignpost.location[0]}
+            latitude={activeSignpost.location[1]}
+            anchor="bottom"
+            onClose={() => setActiveSignpost(null)}
+            closeButton={false}
+            className="z-50"
+            offset={[0, -40]}
+          >
+            <div className="glass-card border border-white/50 shadow-md p-3 rounded-2xl flex flex-col gap-2 min-w-[200px]">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl glass-active p-1.5 rounded-xl border border-white/40">{activeSignpost.emoji}</span>
+                <div className="flex-1">
+                  <p className="text-xs text-[var(--color-text-muted)] font-bold truncate max-w-[120px]">{activeSignpost.authorEmail || 'Guest'}</p>
+                  <p className="text-sm font-black text-[var(--color-text-main)]">{activeSignpost.message}</p>
+                </div>
+              </div>
+              <button 
+                onClick={(e) => handleLikeSignpost(e, activeSignpost)}
+                className="w-full bg-[var(--color-teal-dark)] hover:bg-[var(--color-teal-mid)] border border-white/30 rounded-xl py-2 font-bold text-white text-sm transition-colors flex items-center justify-center gap-1 active:scale-95 shadow-sm"
+              >
+                👍 +1 Eco Energy <span className="bg-white/30 px-1.5 rounded-full border border-white/40 text-xs ml-1 font-black">{activeSignpost.likes || 0}</span>
+              </button>
+            </div>
+          </Popup>
+        )}
+
+        {/* Real Merchants from Firestore */}
+        {merchants.map((m) => (
+          <Marker 
+            key={m.id} 
+            longitude={m.location[0]} 
+            latitude={m.location[1]} 
+            anchor="bottom" 
+            onClick={(e) => {
+              e.originalEvent.stopPropagation();
+              handleMerchantClick(m);
+            }}
+          >
+            <div className={`w-10 h-10 rounded-full border border-white/60 flex items-center justify-center text-xl cursor-pointer transition-colors shadow-sm ${selectedMerchant?.id === m.id ? 'bg-[var(--color-pastel-yellow)] animate-bounce' : 'glass-active hover:bg-white/50'}`}>
+              {m.icon || '🏪'}
+            </div>
+            {m.offers && (
+              <div className="absolute top-[-30px] left-1/2 -translate-x-1/2 whitespace-nowrap bg-[var(--color-teal-dark)] text-white text-xs font-bold px-2 py-1 rounded-full border border-white/40 shadow-sm">
+                {m.offers}
+              </div>
+            )}
+          </Marker>
+        ))}
+
+        {/* Custom Pinned Destination */}
+        {selectedMerchant?.id === 'custom-destination' && (
+          <Marker longitude={selectedMerchant.location[0]} latitude={selectedMerchant.location[1]} anchor="bottom">
+            <div className="text-4xl animate-bounce">📍</div>
+          </Marker>
+        )}
+
+        {/* Planted Trees */}
+        {trees.map((tree) => (
+          <Marker 
+            key={tree.id} 
+            longitude={tree.location[0]} 
+            latitude={tree.location[1]} 
+            anchor="bottom"
+            onClick={(e) => {
+              e.originalEvent.stopPropagation();
+              setActiveTree(tree);
+            }}
+          >
+            <div className="relative group cursor-pointer animate-in zoom-in-50 spring duration-500">
+              <div className="text-4xl">🌳</div>
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap glass-active text-[var(--color-text-main)] text-[10px] font-black px-2 py-0.5 rounded-full border border-white/50 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                {tree.guildId}
+              </div>
+            </div>
+          </Marker>
+        ))}
+
+        {/* Tree Popup */}
+        {activeTree && (
+          <Popup
+            longitude={activeTree.location[0]}
+            latitude={activeTree.location[1]}
+            anchor="bottom"
+            onClose={() => setActiveTree(null)}
+            closeButton={false}
+            className="z-50"
+            offset={[0, -40]}
+          >
+            <div className="bg-white border-2 border-slate-900 shadow-comic p-3 rounded-2xl flex flex-col gap-2 min-w-[150px] text-center">
+              <p className="text-sm font-black text-slate-900">{activeTree.guildId}</p>
+              {user && user.uid === activeTree.authorId && (Date.now() - activeTree.plantedAt < 5 * 60 * 1000) ? (
+                <button 
+                  onClick={() => handleDeleteTree(activeTree.id)}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-lg text-xs"
+                >
+                  Recall Tree (Refund 100)
+                </button>
+              ) : (
+                <p className="text-xs text-slate-500">Planted a tree for the territory!</p>
+              )}
+            </div>
+          </Popup>
+        )}
+
+        {/* Player Avatar */}
+        <Marker longitude={currentCoordinate[0]} latitude={currentCoordinate[1]} anchor="center" style={{ transition: 'all 50ms linear' }}>
+          <div className="relative">
+            <div className="w-6 h-6 bg-brand-green border-2 border-slate-900 rounded-full shadow-lg z-10 relative"></div>
+            {currentMode === 'demo' && demoProgress > 0 && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-brand-green rounded-full opacity-30 animate-ping"></div>
+            )}
+            {(currentMode === 'explore' || currentMode === 'demo') && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-brand-blue rounded-full opacity-30 animate-ping"></div>
+            )}
+          </div>
+        </Marker>
+
+      </Map>
+
+      {/* Navigation Prompt */}
+      {showNavPrompt && liveLocation && !activeRouteData && !selectedMerchant && !isPlantingMode && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md border-2 border-slate-900 shadow-comic px-6 py-3 rounded-full flex items-center gap-3 z-40 animate-in slide-in-from-top-10 fade-in duration-300">
+          <p className="text-sm font-bold text-slate-900">Click anywhere or search to start green navigation!</p>
+          <button 
+            onClick={() => setShowNavPrompt(false)} 
+            className="absolute -top-2 -right-2 bg-slate-900 text-white w-6 h-6 rounded-full text-xs font-bold border-2 border-slate-900 hover:scale-110"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Left Side Floating Icons */}
+      <div className="absolute top-24 left-4 flex flex-col gap-4 z-[90]">
+        <button 
+          onClick={() => setShowLeaderboard(true)}
+          className="w-12 h-12 glass-card rounded-full border border-white/50 shadow-sm flex items-center justify-center hover:-translate-y-1 hover:shadow-md active:translate-y-0 transition-all group"
+        >
+          <Trophy size={20} className="text-[var(--color-text-main)] group-hover:scale-110 transition-transform" />
+        </button>
+        <button 
+          onClick={() => setShowMerchantModal(true)}
+          className="w-12 h-12 glass-card rounded-full border border-white/50 shadow-sm flex items-center justify-center hover:-translate-y-1 hover:shadow-md active:translate-y-0 transition-all group"
+        >
+          <Store size={20} className="text-[var(--color-text-main)] group-hover:scale-110 transition-transform" />
+        </button>
+      </div>
+
+      {/* Unified Radial FAB (Frosted Glass) */}
+      <div className="absolute bottom-32 right-8 flex flex-col items-center justify-end z-50">
+        
+        {/* Expanded Options */}
+        <div className={`flex flex-col items-center gap-4 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isFabOpen ? 'opacity-100 translate-y-0 mb-4' : 'opacity-0 translate-y-10 pointer-events-none mb-0'}`}>
+          {/* Drop Signpost Option */}
+          <div className="relative group">
+            <button 
+              onClick={() => {
+                setShowSignpostModal(true);
+                setIsFabOpen(false);
+              }}
+              className="w-14 h-14 glass-active border border-white/50 shadow-sm rounded-full text-2xl flex items-center justify-center hover:scale-110 hover:-translate-y-1 transition-all active:scale-95 text-[var(--color-text-main)]"
+            >
+              📍
+            </button>
+            <div className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap bg-white/80 backdrop-blur-sm border border-white/50 text-[var(--color-text-main)] text-xs font-bold px-3 py-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+              Drop Signpost
+            </div>
+          </div>
+          
+          {/* Plant Tree Option */}
+          <div className="relative group">
+            <button 
+              onClick={() => {
+                setIsPlantingMode(true);
+                setIsFabOpen(false);
+              }}
+              className="w-14 h-14 glass-active border border-white/50 shadow-sm rounded-full text-2xl flex items-center justify-center hover:scale-110 hover:-translate-y-1 transition-all active:scale-95 text-[var(--color-text-main)]"
+            >
+              🌳
+            </button>
+            <div className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap bg-white/80 backdrop-blur-sm border border-white/50 text-[var(--color-text-main)] text-xs font-bold px-3 py-1.5 rounded-full flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+              <span>Plant Tree</span>
+              <span className="text-[10px] text-[var(--color-teal-dark)]">100 Coins</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Frosted Glass FAB with EcoStride Logo (Leaf) */}
+        <button 
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className={`w-16 h-16 rounded-full glass-card border border-white/50 flex items-center justify-center transition-all duration-300 hover:bg-white/70 active:scale-95 z-10 relative ${isFabOpen ? 'shadow-md translate-y-1 translate-x-1' : 'shadow-lg'}`}
+        >
+          <div className="w-12 h-12 rounded-full bg-[var(--color-teal-dark)] text-white shadow-sm flex items-center justify-center overflow-hidden relative">
+            <div className={`absolute transition-all duration-300 ease-in-out ${isFabOpen ? 'scale-0 opacity-0 rotate-90' : 'scale-100 opacity-100 rotate-0'}`}>
+              <Leaf size={24} strokeWidth={2.5} className="fill-white animate-pulse" />
+            </div>
+            <div className={`absolute transition-all duration-300 ease-in-out ${isFabOpen ? 'scale-100 opacity-100 rotate-0' : 'scale-0 opacity-0 -rotate-90'}`}>
+              <X size={26} strokeWidth={3} className="text-white" />
+            </div>
+          </div>
+        </button>
+
+        {/* Planting Mode Active Tooltip */}
+        {isPlantingMode && (
+          <div className="absolute top-1/2 right-20 -translate-y-1/2 bg-brand-yellow text-slate-900 border-2 border-slate-900 px-4 py-2 rounded-xl font-black text-sm shadow-[4px_4px_0px_0px_#0f172a] animate-pulse whitespace-nowrap">
+            Click anywhere on the map to plant! 📍
+            <button onClick={() => setIsPlantingMode(false)} className="ml-3 underline text-xs">Cancel</button>
+          </div>
+        )}
+      </div>
+
+      {/* Merchant Confirmation Overlay */}
+      {selectedMerchant && !activeRouteData && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 glass-card border border-white/50 shadow-lg px-8 py-6 rounded-3xl flex flex-col items-center gap-4 z-[110] w-80 text-center animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <button 
+            onClick={() => setSelectedMerchant(null)} 
+            className="absolute top-4 right-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] transition-colors bg-white/50 rounded-full p-1 border border-white/40 shadow-sm hover:shadow-md hover:-translate-y-0.5"
+          >
+            <X size={18} strokeWidth={3} />
+          </button>
+
+          <div className="mt-2 w-full">
+            <div className="w-16 h-16 glass-active border border-white/60 shadow-sm rounded-2xl mx-auto flex items-center justify-center text-3xl mb-3">
+              {selectedMerchant.icon || '🏪'}
+            </div>
+            <h3 className="text-2xl font-black text-[var(--color-text-main)] leading-tight">{selectedMerchant.storeName}</h3>
+            <p className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-widest mt-1">{selectedMerchant.category}</p>
+            
+            {selectedMerchant.offers && (
+              <div className="bg-[var(--color-pastel-yellow)] text-[var(--color-text-main)] text-xs font-bold px-3 py-1.5 rounded-lg mt-3 inline-block shadow-sm uppercase tracking-wider border border-white/50">
+                🎁 {selectedMerchant.offers}
+              </div>
+            )}
+            
+            {selectedMerchant.menuLink && (
+              <div className="mt-4 glass-active rounded-lg p-2 border border-white/40">
+                <a href={selectedMerchant.menuLink} target="_blank" rel="noreferrer" className="text-[var(--color-teal-dark)] text-xs font-bold hover:text-[var(--color-teal-mid)] flex items-center justify-center gap-1">
+                  View Menu / Details <ExternalLink size={14} />
+                </a>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex gap-3 w-full mt-2">
+            <button onClick={() => setMerchantStoreFilter(selectedMerchant.id)} className="flex-1 glass-active text-[var(--color-text-main)] font-black py-3 rounded-xl shadow-sm border border-white/40 hover:-translate-y-1 hover:shadow-md transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
+              <Gift size={16} /> Vouchers
+            </button>
+            <button onClick={handleStartNavigation} className="flex-1 bg-[var(--color-teal-dark)] text-white font-black py-3 rounded-xl shadow-md border border-white/20 hover:-translate-y-1 hover:shadow-lg transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
+              <MapPin size={16} /> Go Here
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Distance Overlay (Navigation Active) */}
+      {currentMode === 'explore' && distanceToTarget !== null && selectedMerchant && activeRouteData && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-white border-2 border-slate-900 shadow-comic px-6 py-3 rounded-full flex items-center gap-4 z-[110] animate-in slide-in-from-bottom-10 fade-in duration-300">
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase">Navigating to: {selectedMerchant.storeName}</p>
+            <p className="text-xl font-black text-slate-900">{distanceToTarget} km <span className="text-sm font-bold text-slate-500">remaining</span></p>
+          </div>
+          <div className="w-10 h-10 bg-brand-green rounded-full border-2 border-slate-900 flex items-center justify-center font-bold text-lg animate-pulse">
+            🚶
+          </div>
+          <button onClick={() => { setActiveRouteGeoJSON(null); setDistanceToTarget(null); }} className="ml-2 text-xs font-bold text-red-500 hover:text-red-700 underline">
+            Stop
+          </button>
+        </div>
+      )}
+
+      {/* Congrats Modal for Liking */}
+      <CreateSignpostModal 
+        isOpen={showSignpostModal} 
+        onClose={() => setShowSignpostModal(false)} 
+        currentLocation={currentCoordinate} 
+      />
+      {showCongratsModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+          <div className="bg-white border-4 border-slate-900 shadow-comic rounded-3xl w-full max-w-xs text-center p-6 animate-in zoom-in-90 duration-300">
+            <div className="text-6xl mb-4 animate-bounce">🎉</div>
+            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">Awesome!</h2>
+            <p className="text-sm font-bold text-slate-600 mb-6">You sent positive vibes and Eco Energy. Why don't you drop your own signpost to inspire others?</p>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setShowCongratsModal(false)}
+                className="flex-1 border-2 border-slate-900 text-slate-900 font-bold py-2 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                Later
+              </button>
+              <button 
+                onClick={() => {
+                  setShowCongratsModal(false);
+                  setShowSignpostModal(true);
+                }}
+                className="flex-[2] bg-brand-green border-2 border-slate-900 text-slate-900 font-bold py-2 rounded-xl shadow-comic hover:-translate-y-1 transition-transform"
+              >
+                Drop Signpost 📍
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <LeaderboardModal isOpen={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+      <UserMerchantModal isOpen={showMerchantModal} onClose={() => setShowMerchantModal(false)} />
+
+      {/* Points Store Modal Filtered */}
+      {merchantStoreFilter && (
+        <PointsStoreModal 
+          merchantFilter={merchantStoreFilter} 
+          onClose={() => setMerchantStoreFilter(null)} 
+        />
+      )}
+    </div>
+  );
+};
