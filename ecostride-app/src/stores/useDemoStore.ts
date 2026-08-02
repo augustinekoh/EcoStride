@@ -11,12 +11,16 @@ interface DemoState {
   setIsWaitingForApproval: (val: boolean) => void
   demoRequestRejected: boolean
   setDemoRequestRejected: (val: boolean) => void
+  isChatExpanded: boolean
+  setIsChatExpanded: (val: boolean) => void
   setMode: (mode: 'explore' | 'demo') => void
   setProgress: (progress: number | ((prev: number) => number)) => void
   setIsAutoPlaying: (playing: boolean) => void
   setActiveView: (view: 'landing' | 'map' | 'merchant_dashboard' | 'merchant_onboarding' | 'leaderboard' | 'group' | 'profile' | 'city' | 'settings') => void
   setShowReportModal: (show: boolean) => void
   setCompletedDistanceKm: (dist: number) => void
+  activePrivateChat: { friendId: string, friendUsername: string } | null
+  setActivePrivateChat: (chat: { friendId: string, friendUsername: string } | null) => void
 }
 
 export const useDemoStore = create<DemoState>((set) => ({
@@ -28,6 +32,8 @@ export const useDemoStore = create<DemoState>((set) => ({
   completedDistanceKm: 0,
   isWaitingForApproval: false,
   demoRequestRejected: false,
+  isChatExpanded: false,
+  setIsChatExpanded: (val) => set({ isChatExpanded: val }),
   setMode: (mode) => set({ currentMode: mode }),
   setIsWaitingForApproval: (val) => set({ isWaitingForApproval: val }),
   setDemoRequestRejected: (val) => set({ demoRequestRejected: val }),
@@ -38,4 +44,6 @@ export const useDemoStore = create<DemoState>((set) => ({
   setActiveView: (view) => set({ activeView: view }),
   setShowReportModal: (show) => set({ showReportModal: show }),
   setCompletedDistanceKm: (dist) => set({ completedDistanceKm: dist }),
+  activePrivateChat: null,
+  setActivePrivateChat: (chat) => set({ activePrivateChat: chat })
 }))

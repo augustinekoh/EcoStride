@@ -7,13 +7,15 @@ import { LayoutDashboard, Mail, Store, Users, FileCheck, Globe, LogOut, RefreshC
 import { apiClient } from '../../lib/api';
 
 export const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('users');
 
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [trees, setTrees] = useState<any[]>([]);
   const [signposts, setSignposts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [guilds, setGuilds] = useState<any[]>([]);
+  const [banDuration, setBanDuration] = useState<{ [uid: string]: string }>({});
   const [resetInterval, setResetInterval] = useState<number>(7);
   const [isSaving, setIsSaving] = useState(false);
   const [editingCoins, setEditingCoins] = useState<{ [uid: string]: number }>({});
@@ -64,7 +66,8 @@ export const AdminDashboard: React.FC = () => {
       }
       
       // Map D1 data to match previous UI state expectations where possible
-      setUsers(res.users.map((u: any) => ({ ...u, email: u.email, id: u.id, role: u.role, coins: u.coins })));
+      setUsers(res.users.map((u: any) => ({ ...u, email: u.email, id: u.id, username: u.username, role: u.role, coins: u.coins, bannedUntil: u.banned_until })));
+      if (res.guilds) setGuilds(res.guilds);
       setTrees(res.trees.map((t: any) => ({ id: t.id, authorId: t.author_id, lat: t.lat, lng: t.lng, plantedAt: t.planted_at })));
       setSignposts(res.signposts.map((s: any) => ({ id: s.id, authorId: s.author_id, lat: s.lat, lng: s.lng, emoji: s.emoji, message: s.message })));
       
@@ -157,6 +160,37 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleBanUser = async (uid: string) => {
+    const duration = banDuration[uid];
+    if (!duration) {
+      alert('Please select a ban duration.');
+      return;
+    }
+    if (confirm(`Are you sure you want to ban this user for ${duration}?`)) {
+      try {
+        await apiClient(`/admin/users/${uid}/ban`, { method: 'POST', body: JSON.stringify({ duration }) });
+        alert('User banned successfully.');
+        fetchDashboardData();
+      } catch (err) {
+        console.error(err);
+        alert('Failed to ban user.');
+      }
+    }
+  };
+
+  const handleTerminateCommunity = async (guildId: string) => {
+    if (confirm('Are you SURE you want to terminate this community? This cannot be undone.')) {
+      try {
+        await apiClient(`/admin/guilds/${guildId}`, { method: 'DELETE' });
+        alert('Community terminated.');
+        fetchDashboardData();
+      } catch (err) {
+        console.error(err);
+        alert('Failed to terminate community.');
+      }
+    }
+  };
+
   const handleApprove = async (app: any) => {
     try {
       await apiClient(`/applications/${app.id}`, { method: 'PUT', body: JSON.stringify({ status: 'approved' }) });
@@ -195,7 +229,7 @@ export const AdminDashboard: React.FC = () => {
       return;
     }
     if ((mailTarget === 'user' || mailTarget === 'guild') && !mailTargetId) {
-      alert("Please enter a Target ID.");
+      alert("Please enter a Target Name or ID.");
       return;
     }
 
@@ -215,9 +249,12 @@ export const AdminDashboard: React.FC = () => {
       alert("Message sent successfully!");
       fetchDashboardData();
     } catch (err: any) {
-      alert(`Failed to send mail: ${err.message || 'Unknown error'}`);
+      console.error(err);
+      alert(err.message || 'Failed to send broadcast');
     }
   };
+
+
 
   const handleDeleteMail = async (id: string) => {
     if (window.confirm("Are you sure you want to recall/delete this broadcast?")) {
@@ -378,6 +415,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleDeleteCategory = async (id: string) => {
+    console.log("Delete category", id);
     alert('Category deletion not implemented via UI for D1 yet.');
   };
 
@@ -392,7 +430,7 @@ export const AdminDashboard: React.FC = () => {
     { id: 'applications', label: 'Applications', icon: <FileCheck size={20} />, badge: applications.length + demoRequests.length },
     { id: 'merchants', label: 'Active Merchants', icon: <Store size={20} /> },
     { id: 'store', label: 'Store Manager', icon: <Store size={20} /> },
-    { id: 'users', label: 'Users & Economy', icon: <Users size={20} /> },
+    { id: 'users', label: 'Management Centre', icon: <Users size={20} /> },
     { id: 'broadcasts', label: 'Broadcasts', icon: <Mail size={20} /> },
     { id: 'world', label: 'World Control', icon: <Globe size={20} /> },
   ];
@@ -445,7 +483,7 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto h-screen p-8 bg-transparent">
-        <div className="max-w-7xl mx-auto relative">
+        <div className="max-w-7xl mx-auto relative flex flex-col pt-12">
           
           <button 
             onClick={fetchDashboardData}
@@ -461,7 +499,7 @@ export const AdminDashboard: React.FC = () => {
           {activeTab === 'overview' && (
             <div className="animate-in fade-in duration-300">
               <h2 className="text-3xl font-black text-teal-950 mb-8">Platform Overview</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div className="bg-white/60 backdrop-blur-lg p-6 rounded-3xl shadow-xl shadow-teal-900/5 border border-white/80">
                   <p className="text-sm font-bold text-teal-700/70 uppercase tracking-wider mb-2">Total Users</p>
                   <p className="text-4xl font-black text-[#111111]">{users.length}</p>
@@ -477,6 +515,10 @@ export const AdminDashboard: React.FC = () => {
                 <div className="bg-white/60 backdrop-blur-lg p-6 rounded-3xl shadow-xl shadow-teal-900/5 border border-white/80">
                   <p className="text-sm font-bold text-teal-700/70 uppercase tracking-wider mb-2">Active Signposts</p>
                   <p className="text-4xl font-black text-orange-500">{signposts.length}</p>
+                </div>
+                <div className="bg-white/60 backdrop-blur-lg p-6 rounded-3xl shadow-xl shadow-teal-900/5 border border-white/80">
+                  <p className="text-sm font-bold text-teal-700/70 uppercase tracking-wider mb-2">Active Communities</p>
+                  <p className="text-4xl font-black text-purple-600">{guilds.length}</p>
                 </div>
               </div>
             </div>
@@ -751,72 +793,164 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* USERS TAB */}
+          {/* MANAGEMENT CENTRE TAB */}
           {activeTab === 'users' && (
             <div className="animate-in fade-in duration-300">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-3xl font-black text-teal-950">User Economy</h2>
+                <h2 className="text-3xl font-black text-teal-950">Management Centre</h2>
                 <input 
                   type="text" 
                   placeholder="Search email or ID..."
                   value={userSearchTerm}
                   onChange={(e) => setUserSearchTerm(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 w-64 shadow-sm"
+                  className="bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 w-64 shadow-sm mr-[140px]"
                 />
               </div>
               
-              <div className="bg-white/60 backdrop-blur-lg rounded-3xl shadow-xl shadow-teal-900/5 border border-white/80 overflow-hidden">
-                <div className="max-h-[700px] overflow-y-auto custom-scrollbar">
+              <div className="bg-white/60 backdrop-blur-lg rounded-3xl shadow-xl shadow-teal-900/5 border border-white/80 overflow-hidden mb-12">
+                <div className="p-6 border-b border-white/80 bg-white/40">
+                  <h3 className="text-xl font-bold text-teal-950">User Management</h3>
+                </div>
+                <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-transparent sticky top-0 z-10 shadow-sm">
+                    <thead className="bg-transparent sticky top-0 z-10 shadow-sm backdrop-blur-md">
                       <tr>
                         <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">User</th>
                         <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">Role</th>
                         <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">Stats</th>
                         <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">Coins</th>
-                        <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider text-right">Actions</th>
+                        <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider text-right">Ban User</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredUsers.length === 0 && (
                         <tr><td colSpan={5} className="px-6 py-8 text-center text-teal-700/70 italic">No users found.</td></tr>
                       )}
-                      {filteredUsers.map(u => (
-                        <tr key={u.id} className="hover:bg-transparent/50 transition-colors">
+                      {filteredUsers.map(u => {
+                        const isBanned = u.bannedUntil === -1 || (u.bannedUntil && u.bannedUntil > Date.now());
+                        return (
+                          <tr key={u.id} className="hover:bg-transparent/50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-teal-950 flex items-center gap-2">
+                                {u.username || 'Unknown'}
+                                {isBanned && <span className="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">Banned</span>}
+                              </div>
+                              <div className="text-xs text-teal-700/70 mt-0.5">{u.email}</div>
+                              <div className="text-[10px] text-teal-600/50 font-mono mt-0.5">{u.id}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                u.role === 'admin' ? 'bg-purple-100 text-purple-700' :
+                                u.role === 'merchant' ? 'bg-emerald-100 text-emerald-700' :
+                                'bg-white/60 text-slate-600'
+                              }`}>
+                                {u.role || 'user'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-xs text-slate-600">Trees: <span className="font-bold text-teal-950">{u.totalTreesPlanted || 0}</span></div>
+                              <div className="text-xs text-slate-600">Saved: <span className="font-bold text-teal-950">{u.totalCarbonSaved || 0}g</span></div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-orange-500 font-black">🪙</span>
+                                <input 
+                                  type="number" 
+                                  className="w-20 bg-white border border-slate-300 rounded-md px-2 py-1 text-sm font-bold text-teal-950 outline-none focus:border-teal-500"
+                                  value={editingCoins[u.id] !== undefined ? editingCoins[u.id] : (u.coins || 0)}
+                                  onChange={(e) => setEditingCoins({...editingCoins, [u.id]: Number(e.target.value)})}
+                                />
+                                {editingCoins[u.id] !== undefined && editingCoins[u.id] !== (u.coins || 0) && (
+                                  <button 
+                                    onClick={() => handleUpdateCoins(u.id)}
+                                    className="bg-teal-500/15 text-teal-700 shadow-sm border border-teal-500/20 hover:bg-teal-500 hover:text-white font-bold px-2 py-1 rounded-md text-xs transition-colors"
+                                  >
+                                    Save
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {u.role !== 'admin' && (
+                                <div className="flex justify-end gap-2">
+                                  <select
+                                    value={banDuration[u.id] || ''}
+                                    onChange={(e) => setBanDuration({...banDuration, [u.id]: e.target.value})}
+                                    className="bg-white border border-slate-200 rounded-md px-2 py-1 text-xs outline-none focus:border-red-500"
+                                  >
+                                    <option value="" disabled>Select Duration</option>
+                                    <option value="3d">3 Days</option>
+                                    <option value="14d">14 Days</option>
+                                    <option value="3m">3 Months</option>
+                                    <option value="forever">Forever</option>
+                                  </select>
+                                  <button 
+                                    onClick={() => handleBanUser(u.id)}
+                                    className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200 hover:border-red-500 font-bold px-3 py-1 rounded-md text-xs transition-colors"
+                                  >
+                                    Ban
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="bg-white/60 backdrop-blur-lg rounded-3xl shadow-xl shadow-teal-900/5 border border-white/80 overflow-hidden">
+                <div className="p-6 border-b border-white/80 bg-white/40">
+                  <h3 className="text-xl font-bold text-teal-950">Active Communities</h3>
+                </div>
+                <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-transparent sticky top-0 z-10 shadow-sm backdrop-blur-md">
+                      <tr>
+                        <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">Icon</th>
+                        <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">Community</th>
+                        <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">Access</th>
+                        <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">Total Members</th>
+                        <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider">Admin</th>
+                        <th className="px-6 py-4 font-bold text-teal-700/70 uppercase text-xs tracking-wider text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {guilds.length === 0 && (
+                        <tr><td colSpan={4} className="px-6 py-8 text-center text-teal-700/70 italic">No communities found.</td></tr>
+                      )}
+                      {guilds.map(g => (
+                        <tr key={g.id} className="hover:bg-transparent/50 transition-colors">
+                          <td className="px-6 py-4 text-3xl text-center w-16">{g.icon || '🌍'}</td>
                           <td className="px-6 py-4">
-                            <div className="font-bold text-teal-950">{u.email}</div>
-                            <div className="text-xs text-teal-700/70 font-mono mt-0.5">{u.id}</div>
+                            <div className="font-bold text-teal-950 text-base">{g.name}</div>
+                            <div className="text-xs text-teal-700/70 font-mono mt-0.5">UID: {g.id}</div>
+                            {g.nationality && <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-1">{g.nationality}</div>}
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                              u.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                              u.role === 'merchant' ? 'bg-emerald-100 text-emerald-700' :
-                              'bg-white/60 text-slate-600'
-                            }`}>
-                              {u.role || 'user'}
+                            <span className={`font-bold px-3 py-1 rounded-full text-xs ${g.require_approval ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {g.require_approval ? 'Approval Required' : 'Free to Join'}
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-xs text-slate-600">Trees: <span className="font-bold text-teal-950">{u.totalTreesPlanted || 0}</span></div>
-                            <div className="text-xs text-slate-600">Saved: <span className="font-bold text-teal-950">{u.totalCarbonSaved || 0}g</span></div>
+                            <span className="bg-teal-100 text-teal-800 font-black px-3 py-1 rounded-full">{g.member_count || 0}</span>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-orange-500 font-black">🪙</span>
-                              <input 
-                                type="number" 
-                                className="w-20 bg-white border border-slate-300 rounded-md px-2 py-1 text-sm font-bold text-teal-950 outline-none focus:border-teal-500"
-                                value={editingCoins[u.id] !== undefined ? editingCoins[u.id] : (u.coins || 0)}
-                                onChange={(e) => setEditingCoins({...editingCoins, [u.id]: Number(e.target.value)})}
-                              />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-teal-950">
+                                {users.find(u => u.id === g.admin_id)?.username || 'No Admin'}
+                              </span>
+                              <div className="text-[10px] text-teal-700/50 truncate max-w-[120px]" title={g.admin_id}>{g.admin_id || 'N/A'}</div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-6 py-4 text-right space-x-2">
                             <button 
-                              onClick={() => handleUpdateCoins(u.id)}
-                              className="bg-teal-500/15 text-teal-700 shadow-sm border border-teal-500/20 hover:bg-urban-blue/20 hover:text-teal-600 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors"
+                              onClick={() => handleTerminateCommunity(g.id)}
+                              className="bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white border border-red-500/20 hover:border-red-500 font-bold px-4 py-1.5 rounded-lg text-xs transition-colors"
                             >
-                              Save Coins
+                              Terminate
                             </button>
                           </td>
                         </tr>
@@ -849,19 +983,19 @@ export const AdminDashboard: React.FC = () => {
                         >
                           <option value="all">All Users</option>
                           <option value="merchant_all">All Merchants</option>
-                          <option value="user">Specific User (UID)</option>
-                          <option value="guild">Specific Guild (ID)</option>
+                          <option value="user">Specific User (Username or UID)</option>
+                          <option value="guild">Specific Guild (Name or ID)</option>
                         </select>
                       </div>
                       
                       {(mailTarget === 'user' || mailTarget === 'guild') && (
                         <div className="flex-1">
-                          <label className="block text-xs font-bold text-teal-700/70 uppercase tracking-wider mb-2">Target ID</label>
+                          <label className="block text-xs font-bold text-teal-700/70 uppercase tracking-wider mb-2">Target Name or ID</label>
                           <input 
                             type="text" 
                             value={mailTargetId}
                             onChange={(e) => setMailTargetId(e.target.value)}
-                            placeholder={mailTarget === 'user' ? "Username or UID..." : "Guild ID..."}
+                            placeholder={mailTarget === 'user' ? "Username or UID..." : "Guild Name or ID..."}
                             className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-teal-950 font-bold outline-none focus:border-teal-500"
                           />
                         </div>
@@ -961,7 +1095,11 @@ export const AdminDashboard: React.FC = () => {
                               )}
                             </h4>
                             <p className="text-xs text-teal-700/70 mt-1 font-bold">
-                              To: {mail.recipientType === 'all' ? 'All Users' : mail.recipientType === 'merchant_all' ? 'All Merchants' : mail.recipientType === 'user' || mail.recipientType === 'specific_user' ? `${mail.recipientName || 'Unknown User'} (${mail.recipientId || 'N/A'})` : mail.recipientType}
+                              To: {mail.recipientType === 'all' ? 'All Users' : 
+                                   mail.recipientType === 'merchant_all' ? 'All Merchants' : 
+                                   mail.recipientType === 'user' || mail.recipientType === 'specific_user' ? `${mail.recipientName || 'Unknown User'} (${mail.recipientId || 'N/A'})` : 
+                                   mail.recipientType === 'guild' ? `${mail.recipientName || 'Unknown Guild'} (${mail.recipientId || 'N/A'})` : 
+                                   mail.recipientType}
                             </p>
                             <p className="text-sm text-slate-600 mt-3 line-clamp-3 leading-relaxed">{mail.content}</p>
                             <p className="text-[10px] font-bold text-teal-700/70 mt-3 uppercase tracking-wider">{new Date(mail.createdAt).toLocaleString()}</p>

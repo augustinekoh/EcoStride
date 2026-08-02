@@ -1,0 +1,3 @@
+ALTER TABLE guilds ADD COLUMN icon TEXT DEFAULT '🌍';
+ALTER TABLE guilds ADD COLUMN nationality TEXT DEFAULT 'Global';
+ALTER TABLE guilds ADD COLUMN require_approval INTEGER DEFAULT 0;

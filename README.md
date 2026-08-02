@@ -1,32 +1,68 @@
-# React + TypeScript + Vite
+# EcoStride
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A green mobility rewards platform that encourages walking and eco-friendly transportation. Users earn Eco-Coins and plant virtual trees while reducing carbon emissions.
 
-Currently, two official plugins are available:
+## Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+EcoStride/
+├── ecostride-app/        # Frontend — React + TypeScript + Vite
+│   ├── src/
+│   │   ├── components/   # UI components (admin, city, controls, landing, map, merchant, modals, profile, social)
+│   │   ├── hooks/        # Custom React hooks (community chat)
+│   │   ├── lib/          # API client, Mapbox utilities
+│   │   ├── stores/       # Zustand state management
+│   │   └── assets/       # Static assets
+│   └── .env              # Environment variables (see .env.example)
+│
+├── ecostride-backend/    # Backend — Cloudflare Workers + Hono + D1
+│   ├── src/
+│   │   ├── index.ts      # API routes
+│   │   └── CommunityChatRoom.ts  # Durable Object for real-time chat
+│   ├── schema.sql        # D1 database schema
+│   └── wrangler.toml     # Cloudflare Workers config
+│
+└── README.md             # This file
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Tech Stack
+
+- **Frontend**: React 19, TypeScript, Vite, Zustand, Mapbox GL, Firebase Auth, TailwindCSS
+- **Backend**: Cloudflare Workers, Hono, D1 (SQLite), Durable Objects
+- **Auth**: Firebase Authentication (Email/Password)
+- **Maps**: Mapbox GL JS
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+
+- Cloudflare account (for Workers & D1)
+- Firebase project (for authentication)
+- Mapbox account (for maps)
+
+### Frontend
+```bash
+cd ecostride-app
+cp .env.example .env     # Fill in your keys
+npm install
+npm run dev
+```
+
+### Backend
+```bash
+cd ecostride-backend
+npm install
+npm run db:init           # Initialize local D1 database
+npm run dev               # Start local Workers dev server
+```
+
+## Features
+
+- 🗺️ Interactive map with walking route simulation
+- 🪙 Eco-Coin rewards for walking
+- 🌳 Virtual tree planting
+- 🏪 Merchant voucher store
+- 👥 Community guilds with real-time chat (Durable Objects + WebSockets)
+- 📬 In-app mailbox and notifications
+- 🏆 Leaderboards
+- 🔒 Admin dashboard

@@ -8,7 +8,10 @@ export const ProfileView: React.FC = () => {
     username, 
     bio, 
     nationality, 
-    totalTreesPlanted, 
+    totalTreesPlanted,
+    totalDistanceKm,
+    guildId,
+    guildName,
     streaks, 
     unlockedBadges,
     setUserData
@@ -88,8 +91,8 @@ export const ProfileView: React.FC = () => {
         </div>
         <div className="glass-card p-4 flex flex-col gap-2">
           <div className="w-8 h-8 glass-active rounded-full flex items-center justify-center text-orange-500"><Building2 size={16}/></div>
-          <span className="text-xs font-bold text-[var(--color-text-muted)]">Cases Reported</span>
-          <span className="text-lg font-black text-[var(--color-text-main)]">{streaks}</span>
+          <span className="text-xs font-bold text-[var(--color-text-muted)]">Total Distance</span>
+          <span className="text-lg font-black text-[var(--color-text-main)]">{totalDistanceKm}km</span>
         </div>
         <div 
           onClick={() => setActiveView('map')}
@@ -102,8 +105,8 @@ export const ProfileView: React.FC = () => {
         </div>
         <div className="glass-card p-4 flex flex-col gap-2">
           <div className="w-8 h-8 glass-active rounded-full flex items-center justify-center text-blue-500"><Users size={16}/></div>
-          <span className="text-xs font-bold text-[var(--color-text-muted)]">Group Joined</span>
-          <span className="text-lg font-black text-[var(--color-text-main)] truncate">TestGroup</span>
+          <span className="text-xs font-bold text-[var(--color-text-muted)]">Community Joined</span>
+          <span className="text-lg font-black text-[var(--color-text-main)] truncate">{guildName || guildId || 'None'}</span>
         </div>
       </div>
 

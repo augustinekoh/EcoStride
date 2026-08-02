@@ -12,3 +12,11 @@ FIREBASE_PROJECT_ID = "ecostride-0"
 
 [triggers]
 crons = ["0 * * * *"]
+
+[[durable_objects.bindings]]
+name = "CHAT_ROOM"
+class_name = "CommunityChatRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["CommunityChatRoom"]

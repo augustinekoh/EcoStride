@@ -10,14 +10,19 @@ export const RouteSimulator: React.FC = () => {
   const [milestoneToast, setMilestoneToast] = useState<string | null>(null);
   const lastMilestoneRef = useRef<number>(0);
 
+  const distanceRef = useRef(distanceToTarget);
+  useEffect(() => {
+    distanceRef.current = distanceToTarget;
+  }, [distanceToTarget]);
+
   useEffect(() => {
     let interval: number;
-    if (isAutoPlaying && currentMode === 'demo' && activeRouteGeoJSON && distanceToTarget !== null) {
+    if (isAutoPlaying && currentMode === 'demo' && activeRouteGeoJSON && distanceRef.current !== null) {
       interval = window.setInterval(() => {
         setProgress((prev: number) => {
           if (prev >= 100) {
             setIsAutoPlaying(false);
-            setCompletedDistanceKm(distanceToTarget);
+            setCompletedDistanceKm(distanceRef.current);
             setShowReportModal(true);
             return 100;
           }
@@ -26,7 +31,7 @@ export const RouteSimulator: React.FC = () => {
       }, 50);
     }
     return () => clearInterval(interval);
-  }, [isAutoPlaying, setProgress, setIsAutoPlaying, setShowReportModal, distanceToTarget, currentMode, activeRouteGeoJSON]);
+  }, [isAutoPlaying, setProgress, setIsAutoPlaying, setShowReportModal, currentMode, activeRouteGeoJSON]);
 
   const currentDistance = distanceToTarget ? (distanceToTarget * demoProgress) / 100 : 0;
   const currentCarbon = currentDistance / 5.88;

@@ -15,6 +15,7 @@ import { AuthModal } from './components/modals/AuthModal';
 import { VerificationPending } from './components/landing/VerificationPending';
 import { AdminLogin } from './components/admin/AdminLogin';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { SocialRouter } from './components/social/SocialRouter';
 import { useAuthStore } from './stores/useAuthStore';
 import { auth } from './firebase';
 import { onAuthStateChanged, setPersistence, browserSessionPersistence } from 'firebase/auth';
@@ -23,7 +24,7 @@ import { useUserStore } from './stores/useUserStore';
 import { useMailStore } from './stores/useMailStore';
 
 function PublicApp() {
-  const { activeView, isWaitingForApproval } = useDemoStore();
+  const { activeView, isWaitingForApproval, isChatExpanded } = useDemoStore();
   const { user } = useAuthStore();
 
   if (!user || isWaitingForApproval) {
@@ -36,7 +37,7 @@ function PublicApp() {
 
   // Google sign-ins and other verified users will have emailVerified = true.
   // We only block if they explicitly registered with Email/Password and haven't verified.
-  if (!auth.currentUser?.emailVerified) {
+  if (!user?.emailVerified) {
     return (
       <div className="w-screen h-screen overflow-hidden relative text-slate-900 font-sans transition-colors duration-500">
         <VerificationPending />
@@ -46,7 +47,7 @@ function PublicApp() {
 
   return (
     <div className="w-screen h-screen overflow-hidden relative text-slate-900 font-sans transition-colors duration-500">
-      {activeView !== 'settings' && <BottomNavBar />}
+      {activeView !== 'settings' && !isChatExpanded && <BottomNavBar />}
       
       {activeView === 'landing' && <LandingPage />}
       {activeView === 'profile' && <ProfileView />}
@@ -61,11 +62,7 @@ function PublicApp() {
       )}
       {activeView === 'merchant_dashboard' && <MerchantDashboard />}
       {activeView === 'merchant_onboarding' && <MerchantOnboardingForm />}
-      {activeView === 'group' && (
-        <div className="h-full w-full bg-brand-cream flex items-center justify-center p-8 text-center">
-          <h2 className="text-3xl font-black uppercase text-slate-400">Group System Coming Soon!</h2>
-        </div>
-      )}
+      {activeView === 'group' && <SocialRouter />}
     </div>
   );
 }
@@ -96,7 +93,9 @@ function App() {
     // Force session persistence so closing the tab or opening a new tab logs out the user
     setPersistence(auth, browserSessionPersistence).catch(console.error);
     
-    let demoPollInterval: any = null;
+    let demoPollInterval: ReturnType<typeof setTimeout>;
+    let userPollInterval: ReturnType<typeof setTimeout>;
+    let isInitialMailFetch = true;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -115,7 +114,12 @@ function App() {
                 player_id: data.user.player_id,
                 totalTreesPlanted: data.user.total_trees_planted || 0,
                 createdAt: data.user.created_at || Date.now(), // fallback to now if not set
-                activityHistory: data.user.activityHistory || []
+                activityHistory: data.user.activityHistory || [],
+                guildId: data.user.guild_id || null,
+                guildName: data.user.guildName || null,
+                bio: data.user.bio || '',
+                nationality: data.user.nationality || '',
+                unlockedBadges: data.user.unlocked_badges ? JSON.parse(data.user.unlocked_badges) : []
               });
               
               // Handle role
@@ -143,13 +147,38 @@ function App() {
                 if (m.recipient_type === 'guild' && userState.guildId && m.recipient_id === userState.guildId) return true;
                 return false;
               });
+              
+              if (!isInitialMailFetch) {
+                const existingMails = useMailStore.getState().mails;
+                const newRequests = filtered.filter((m: any) => 
+                  (m.action_type === 'friend_request' || m.action_type === 'guild_join_request') &&
+                  !(existingMails || []).find(ex => ex.id === m.id)
+                );
+                
+                newRequests.forEach((req: any) => {
+                  let message = req.content;
+                  if (req.action_type === 'friend_request') {
+                    message = "You have a pending friend request to review";
+                  }
+                  
+                  useUserStore.getState().addNotification({
+                    title: req.title,
+                    message: message,
+                    icon: req.action_type === 'friend_request' ? 'Users' : 'Building'
+                  });
+                });
+              }
+              isInitialMailFetch = false;
+
               useMailStore.getState().setMailsData(filtered.map((m: any) => ({
                 id: m.id,
                 title: m.title,
                 content: m.content,
                 sender: m.sender,
-                createdAt: m.created_at
-              })));
+                createdAt: m.created_at,
+                action_type: m.action_type,
+                action_data: m.action_data
+              })), mailData.read_mail_ids || []);
             }
           } catch (e) {
             console.error("Failed to fetch user data", e);
@@ -193,17 +222,20 @@ function App() {
           demoPollInterval = setInterval(checkDemoStatus, 3000);
         } else {
           fetchUserDataAndMails();
+          userPollInterval = setInterval(fetchUserDataAndMails, 15000);
         }
       } else {
         setUser(null, null);
         setUserData({ userCoins: 0, totalCarbonSaved: 0, totalDistanceKm: 0, activityHistory: [] });
         if (demoPollInterval) clearInterval(demoPollInterval);
+        if (userPollInterval) clearInterval(userPollInterval);
       }
       setLoading(false);
     });
     return () => {
       unsubscribe();
       if (demoPollInterval) clearInterval(demoPollInterval);
+      if (userPollInterval) clearInterval(userPollInterval);
     };
   }, [setUser, setLoading, setUserData]);
 

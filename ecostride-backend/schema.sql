@@ -10,7 +10,13 @@ CREATE TABLE IF NOT EXISTS users (
   total_trees_planted INTEGER DEFAULT 0,
   player_id TEXT,
   created_at INTEGER,
-  verified_email INTEGER DEFAULT 0
+  verified_email INTEGER DEFAULT 0,
+  banned_until INTEGER,
+  muted_until INTEGER,
+  avatar TEXT,
+  bio TEXT,
+  nationality TEXT,
+  unlocked_badges TEXT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -86,9 +92,12 @@ CREATE TABLE IF NOT EXISTS mail (
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   sender TEXT NOT NULL,
+  recipient_name TEXT,
   recipient_type TEXT NOT NULL,
   recipient_id TEXT,
   expires_for_new_users INTEGER NOT NULL,
+  action_type TEXT,
+  action_data TEXT,
   created_at INTEGER NOT NULL
 );
 
@@ -124,4 +133,43 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE TABLE IF NOT EXISTS store_categories (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS guilds (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  icon TEXT DEFAULT '🌍',
+  nationality TEXT DEFAULT 'Global',
+  require_approval INTEGER DEFAULT 0,
+  admin_id TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id TEXT PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS friends (
+  user_id TEXT NOT NULL,
+  friend_id TEXT NOT NULL,
+  status TEXT DEFAULT 'accepted',
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, friend_id),
+  FOREIGN KEY(user_id) REFERENCES users(id),
+  FOREIGN KEY(friend_id) REFERENCES users(id)
+);
+
+
+CREATE TABLE IF NOT EXISTS user_deleted_mail (
+  user_id TEXT NOT NULL,
+  mail_id TEXT NOT NULL,
+  deleted_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, mail_id),
+  FOREIGN KEY(mail_id) REFERENCES mail(id) ON DELETE CASCADE
 );

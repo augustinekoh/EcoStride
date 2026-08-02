@@ -2,16 +2,21 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
+export { CommunityChatRoom } from './CommunityChatRoom';
+
 type Bindings = {
   DB: D1Database;
   FIREBASE_PROJECT_ID: string;
+  CHAT_ROOM: DurableObjectNamespace;
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+type Variables = {
+  user: any;
+};
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 app.use('*', cors());
-
-
 
 // Authentication Middleware
 app.use('/api/*', async (c, next) => {
@@ -20,7 +25,11 @@ app.use('/api/*', async (c, next) => {
   }
   
   // Public routes
-  if (c.req.path === '/api/check-username') {
+  if (
+    c.req.path === '/api/check-username' || 
+    c.req.path.startsWith('/api/chat/community/') ||
+    (c.req.path.startsWith('/api/guilds') && c.req.method === 'GET')
+  ) {
     return next();
   }
 
@@ -57,6 +66,428 @@ app.get('/api/check-username', async (c) => {
   return c.json({ available: !existing });
 });
 
+// GET /api/chat/messages/:guildId
+  app.get('/api/chat/messages/:guildId', async (c) => {
+    const guildId = c.req.param('guildId');
+    const messages = await c.env.DB.prepare('SELECT c.*, u.username FROM chat_messages c LEFT JOIN users u ON c.user_id = u.id WHERE c.guild_id = ? ORDER BY c.created_at ASC').bind(guildId).all();
+    return c.json({ messages: messages.results });
+  });
+
+// GET /api/guilds/recommended
+app.get('/api/guilds/recommended', async (c) => {
+  const guilds = await c.env.DB.prepare(
+    'SELECT g.*, (SELECT COUNT(*) FROM users u WHERE u.guild_id = g.id) as member_count FROM guilds g ORDER BY member_count DESC LIMIT 20'
+  ).all();
+  return c.json({ guilds: guilds.results });
+});
+
+// GET /api/guilds/search
+app.get('/api/guilds/search', async (c) => {
+  const q = c.req.query('q');
+  if (!q) return c.json({ guilds: [] });
+  const guilds = await c.env.DB.prepare(
+    'SELECT g.*, (SELECT COUNT(*) FROM users u WHERE u.guild_id = g.id) as member_count FROM guilds g WHERE g.name LIKE ? OR g.id LIKE ? ORDER BY member_count DESC LIMIT 20'
+  ).bind(`%${q}%`, `%${q}%`).all();
+  return c.json({ guilds: guilds.results });
+});
+
+// POST /api/guilds
+app.post('/api/guilds', async (c) => {
+  // @ts-ignore
+  const user = c.get('user');
+  if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+
+  const { name, description, icon, nationality, require_approval } = await c.req.json();
+  if (!name) return c.json({ error: 'Name is required' }, 400);
+
+  // Check if user is already in a community
+  const dbUser = await c.env.DB.prepare('SELECT guild_id FROM users WHERE id = ?').bind(user.sub).first() as any;
+  if (dbUser && dbUser.guild_id) {
+    return c.json({ success: false, error: 'You are already in a community. Leave it first.' }, 400);
+  }
+
+  // Check uniqueness of name
+  const existingName = await c.env.DB.prepare('SELECT id FROM guilds WHERE LOWER(name) = LOWER(?)').bind(name).first();
+  if (existingName) {
+    return c.json({ success: false, error: 'Community name already exists' }, 400);
+  }
+
+  let guildId = '';
+  let isUnique = false;
+  while (!isUnique) {
+    guildId = Math.floor(10000000 + Math.random() * 90000000).toString(); // 8 digits
+    const existingId = await c.env.DB.prepare('SELECT id FROM guilds WHERE id = ?').bind(guildId).first();
+    if (!existingId) isUnique = true;
+  }
+  
+  await c.env.DB.prepare(
+    'INSERT INTO guilds (id, name, description, icon, nationality, require_approval, admin_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).bind(guildId, name, description || '', icon || '🌍', nationality || 'Global', require_approval ? 1 : 0, user.sub, Date.now()).run();
+
+  // Automatically join the created guild
+  await c.env.DB.prepare('UPDATE users SET guild_id = ? WHERE id = ?').bind(guildId, user.sub).run();
+
+  return c.json({ success: true, guildId });
+});
+
+// PUT /api/guilds/:id
+app.put('/api/guilds/:id', async (c) => {
+  // @ts-ignore
+  const user = c.get('user');
+  if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+  const guildId = c.req.param('id');
+  
+  const { name, description, icon, nationality, require_approval } = await c.req.json();
+  if (!name) return c.json({ error: 'Name is required' }, 400);
+
+  // Check if guild exists and user is admin
+  const guild = await c.env.DB.prepare('SELECT admin_id FROM guilds WHERE id = ?').bind(guildId).first() as any;
+  if (!guild) return c.json({ error: 'Guild not found' }, 404);
+  if (guild.admin_id !== user.sub) return c.json({ error: 'Only the admin can edit the community' }, 403);
+
+  // Check uniqueness of name (ignoring current guild)
+  const existingName = await c.env.DB.prepare('SELECT id FROM guilds WHERE LOWER(name) = LOWER(?) AND id != ?').bind(name, guildId).first();
+  if (existingName) {
+    return c.json({ success: false, error: 'Community name already exists' }, 400);
+  }
+
+  await c.env.DB.prepare(
+    'UPDATE guilds SET name = ?, description = ?, icon = ?, nationality = ?, require_approval = ? WHERE id = ?'
+  ).bind(name, description || '', icon || '🌍', nationality || 'Global', require_approval ? 1 : 0, guildId).run();
+
+  return c.json({ success: true, guildId });
+});
+
+// POST /api/guilds/:id/join
+app.post('/api/guilds/:id/join', async (c) => {
+  // @ts-ignore
+  const user = c.get('user');
+  if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+  const guildId = c.req.param('id');
+  
+  // Check if user is already in a community
+  const dbUser = await c.env.DB.prepare('SELECT guild_id FROM users WHERE id = ?').bind(user.sub).first() as any;
+  if (dbUser && dbUser.guild_id) {
+    return c.json({ error: 'You are already in a community. Leave it first.' }, 400);
+  }
+
+  const memberCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE guild_id = ?').bind(guildId).first() as any;
+  if (memberCount && memberCount.count >= 75) {
+    return c.json({ error: 'This community is full (max 75 members)' }, 400);
+  }
+
+  await c.env.DB.prepare('UPDATE users SET guild_id = ? WHERE id = ?').bind(guildId, user.sub).run();
+  
+  return c.json({ success: true, guildId });
+});
+
+// POST /api/guilds/:id/request_join
+app.post('/api/guilds/:id/request_join', async (c) => {
+  // @ts-ignore
+  const user = c.get('user');
+  if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+  const guildId = c.req.param('id');
+  
+  // Check if user is already in a community
+  const dbUser = await c.env.DB.prepare('SELECT guild_id FROM users WHERE id = ?').bind(user.sub).first() as any;
+  if (dbUser && dbUser.guild_id) {
+    return c.json({ error: 'You are already in a community. Leave it first.' }, 400);
+  }
+
+  const guild = await c.env.DB.prepare('SELECT id, name, admin_id FROM guilds WHERE id = ?').bind(guildId).first();
+  if (!guild) return c.json({ error: 'Guild not found' }, 404);
+  if (!guild.admin_id) return c.json({ error: 'This community has no admin to accept requests' }, 400);
+
+  const reqUser = await c.env.DB.prepare('SELECT username, email FROM users WHERE id = ?').bind(user.sub).first() as { username?: string, email?: string } | null;
+  const username = reqUser?.username || (reqUser?.email ? reqUser.email.split('@')[0] : 'A user');
+
+  // Check if a request already exists
+  const existingReq = await c.env.DB.prepare(
+    "SELECT id FROM mail WHERE action_type = 'guild_join_request' AND action_data LIKE ?"
+  ).bind(`%"userId":"${user.sub}"%`).first();
+  if (existingReq) {
+    return c.json({ error: 'You already have a pending join request.' }, 400);
+  }
+
+  const mailId = crypto.randomUUID();
+  await c.env.DB.prepare(
+    'INSERT INTO mail (id, title, content, sender, recipient_type, recipient_id, expires_for_new_users, action_type, action_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).bind(
+    mailId,
+    'New Join Request',
+    `${username} wants to join ${guild.name}.`,
+    'System',
+    'user',
+    guild.admin_id,
+    0,
+    'guild_join_request',
+    JSON.stringify({ guildId: guild.id, userId: user.sub, username, guildName: guild.name }),
+    Date.now()
+  ).run();
+
+  return c.json({ success: true });
+});
+
+// POST /api/mail/:id/action
+app.post('/api/mail/:id/action', async (c) => {
+  // @ts-ignore
+  const user = c.get('user');
+  if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+  const mailId = c.req.param('id');
+  const { action } = await c.req.json();
+
+  const mail = await c.env.DB.prepare('SELECT * FROM mail WHERE id = ? AND recipient_id = ?').bind(mailId, user.sub).first();
+  if (!mail) return c.json({ error: 'Mail not found' }, 404);
+  
+  if (mail.action_type === 'guild_join_request') {
+    const data = JSON.parse(mail.action_data as string);
+    const { userId, guildId, username, guildName } = data;
+    
+    if (action === 'accept') {
+      // Check if user already joined a guild
+      const targetUser = await c.env.DB.prepare('SELECT guild_id FROM users WHERE id = ?').bind(userId).first();
+      if (targetUser && targetUser.guild_id) {
+        // Already joined
+        await c.env.DB.prepare('UPDATE mail SET content = ?, action_type = NULL, action_data = NULL WHERE id = ?')
+          .bind(`That user already joined another community.`, mailId).run();
+        return c.json({ success: true, message: 'User already joined another community' });
+      } else {
+        // Check community member limit
+        const memberCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE guild_id = ?').bind(guildId).first() as any;
+        if (memberCount && memberCount.count >= 75) {
+          await c.env.DB.prepare('UPDATE mail SET content = ?, action_type = NULL, action_data = NULL WHERE id = ?')
+            .bind(`Failed to accept: community is full (max 75 members).`, mailId).run();
+          return c.json({ success: false, message: 'Community is full' });
+        }
+
+        // Accept them
+        await c.env.DB.prepare('UPDATE users SET guild_id = ? WHERE id = ?').bind(guildId, userId).run();
+        await c.env.DB.prepare('UPDATE mail SET content = ?, action_type = NULL, action_data = NULL WHERE id = ?')
+          .bind(`You accepted ${username} into the community.`, mailId).run();
+          
+        // Notify user
+        await c.env.DB.prepare(
+          'INSERT INTO mail (id, title, content, sender, recipient_type, recipient_id, expires_for_new_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(crypto.randomUUID(), 'Join Request Approved', `The admin approved your request to join ${guildName}.`, 'System', 'user', userId, 0, Date.now()).run();
+      }
+    } else if (action === 'reject') {
+      await c.env.DB.prepare('UPDATE mail SET content = ?, action_type = NULL, action_data = NULL WHERE id = ?')
+        .bind(`You rejected ${username} to join the community.`, mailId).run();
+        
+      // Notify user
+      await c.env.DB.prepare(
+        'INSERT INTO mail (id, title, content, sender, recipient_type, recipient_id, expires_for_new_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(crypto.randomUUID(), 'Join Request Rejected', `The admin rejected your request to join ${guildName}.`, 'System', 'user', userId, 0, Date.now()).run();
+    }
+  } else if (mail.action_type === 'friend_request') {
+    const data = JSON.parse(mail.action_data as string);
+    const { requester_id, requester_username } = data;
+    const myUsername = user.username || 'Someone'; // we can fetch real username but 'Someone' works as fallback
+
+    if (action === 'accept') {
+      const now = Date.now();
+      // Update original pending request
+      await c.env.DB.prepare('UPDATE friends SET status = ? WHERE user_id = ? AND friend_id = ?').bind('accepted', requester_id, user.sub).run();
+      // Create reciprocal accepted request
+      await c.env.DB.prepare('INSERT OR IGNORE INTO friends (user_id, friend_id, status, created_at) VALUES (?, ?, ?, ?)').bind(user.sub, requester_id, 'accepted', now).run();
+      
+      await c.env.DB.prepare('UPDATE mail SET content = ?, action_type = NULL, action_data = NULL WHERE id = ?')
+        .bind(`You are now friends with ${requester_username || 'them'}! Say hi!`, mailId).run();
+        
+      await c.env.DB.prepare(
+        'INSERT INTO mail (id, title, content, sender, recipient_type, recipient_id, expires_for_new_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(crypto.randomUUID(), 'Friend Request Accepted', `Your friend request to ${myUsername} was accepted! Say hi!`, 'System', 'user', requester_id, 0, Date.now()).run();
+    } else if (action === 'reject') {
+      // Delete pending request
+      await c.env.DB.prepare('DELETE FROM friends WHERE user_id = ? AND friend_id = ?').bind(requester_id, user.sub).run();
+      
+      await c.env.DB.prepare('UPDATE mail SET content = ?, action_type = NULL, action_data = NULL WHERE id = ?')
+        .bind(`You rejected the friend request from ${requester_username || 'them'}.`, mailId).run();
+        
+      await c.env.DB.prepare(
+        'INSERT INTO mail (id, title, content, sender, recipient_type, recipient_id, expires_for_new_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(crypto.randomUUID(), 'Friend Request Rejected', `Your friend request to ${myUsername} was rejected.`, 'System', 'user', requester_id, 0, Date.now()).run();
+    }
+  }
+  return c.json({ success: true });
+});
+
+// POST /api/guilds/leave
+app.post('/api/guilds/leave', async (c) => {
+  // @ts-ignore
+  const user = c.get('user');
+  if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+  
+  // Check if user is in a guild
+  const dbUser = await c.env.DB.prepare('SELECT guild_id FROM users WHERE id = ?').bind(user.sub).first() as any;
+  if (!dbUser || !dbUser.guild_id) return c.json({ error: 'Not in a community' }, 400);
+  
+  const guildId = dbUser.guild_id;
+  const guild = await c.env.DB.prepare('SELECT admin_id FROM guilds WHERE id = ?').bind(guildId).first() as any;
+  
+  // If admin is trying to leave
+  if (guild && guild.admin_id === user.sub) {
+    const memberCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE guild_id = ?').bind(guildId).first() as any;
+    if (memberCount.count > 1) {
+      return c.json({ error: 'Admin must transfer ownership before leaving' }, 400);
+    } else {
+      // Sole member, delete community
+      await c.env.DB.prepare('DELETE FROM guilds WHERE id = ?').bind(guildId).run();
+    }
+  }
+  
+  await c.env.DB.prepare('UPDATE users SET guild_id = NULL, muted_until = NULL WHERE id = ?').bind(user.sub).run();
+  
+  return c.json({ success: true });
+});
+
+// GET /api/guilds/:id
+app.get('/api/guilds/:id', async (c) => {
+  const guildId = c.req.param('id');
+  const guild = await c.env.DB.prepare('SELECT * FROM guilds WHERE id = ?').bind(guildId).first();
+  if (!guild) return c.json({ error: 'Not found' }, 404);
+  
+  const members = await c.env.DB.prepare(
+    'SELECT id, username, email, avatar, total_trees_planted, muted_until FROM users WHERE guild_id = ? ORDER BY total_trees_planted DESC'
+  ).bind(guildId).all();
+  
+  let hasPendingRequest = false;
+  const authHeader = c.req.header('Authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const projectId = c.env.FIREBASE_PROJECT_ID || 'ecostride-d4aec';
+      const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
+      const { payload } = await jwtVerify(token, JWKS, { issuer: `https://securetoken.google.com/${projectId}`, audience: projectId });
+      if (payload.sub) {
+        const existingReq = await c.env.DB.prepare(
+          "SELECT id FROM mail WHERE action_type = 'guild_join_request' AND action_data LIKE ? AND action_data LIKE ?"
+        ).bind(`%"guildId":"${guildId}"%`, `%"userId":"${payload.sub}"%`).first();
+        if (existingReq) hasPendingRequest = true;
+      }
+    } catch (e) {}
+  }
+  
+  return c.json({ guild, members: members.results, hasPendingRequest });
+});
+
+// WebSocket Upgrade route for Community Chat
+app.get('/api/chat/community/:guildId', async (c) => {
+  const guildId = c.req.param('guildId');
+  const token = c.req.query('token');
+
+  if (!token) {
+    return c.text('Missing token', 401);
+  }
+
+  const projectId = c.env.FIREBASE_PROJECT_ID || 'ecostride-d4aec';
+  let userId = '';
+
+  try {
+    const JWKS = createRemoteJWKSet(
+      new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com')
+    );
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: `https://securetoken.google.com/${projectId}`,
+      audience: projectId,
+    });
+    userId = payload.sub as string;
+  } catch (err) {
+    return c.text('Invalid token', 401);
+  }
+
+  // Get the DO instance for this guildId
+  const id = c.env.CHAT_ROOM.idFromName(guildId);
+  const stub = c.env.CHAT_ROOM.get(id);
+
+  // Rewrite URL to pass guildId and userId in query params so the DO can parse them easily
+  const url = new URL(c.req.url);
+  url.searchParams.set('guildId', guildId);
+  url.searchParams.set('userId', userId);
+  
+  const modifiedRequest = new Request(url.toString(), c.req.raw);
+  return stub.fetch(modifiedRequest);
+});
+
+// GET users search (for adding friends)
+app.get('/api/users', async (c) => {
+  const q = c.req.query('q');
+  if (!q) return c.json({ users: [] });
+  // Search by exact ID, exact player_id, or partial username
+  const users = await c.env.DB.prepare(
+    'SELECT id, username, email, player_id, guild_id FROM users WHERE id = ? OR player_id = ? OR username LIKE ? LIMIT 10'
+  ).bind(q, q, `%${q}%`).all();
+  return c.json({ users: users.results });
+});
+
+// GET friends
+app.get('/api/friends/:id', async (c) => {
+  const id = c.req.param('id');
+  const jwtUser = c.get('user') as any;
+  if (!jwtUser || jwtUser.sub !== id) return c.json({ error: 'Unauthorized' }, 401);
+
+    const friends = await c.env.DB.prepare(
+      'SELECT u.id, u.username, u.email, u.player_id, u.guild_id, f.created_at, f.status FROM friends f JOIN users u ON f.friend_id = u.id WHERE f.user_id = ? ORDER BY f.created_at DESC'
+    ).bind(id).all();
+  
+  return c.json({ friends: friends.results });
+});
+
+// POST friend
+app.post('/api/friends/:id', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const jwtUser = c.get('user') as any;
+  if (!jwtUser || jwtUser.sub !== id) return c.json({ error: 'Unauthorized' }, 401);
+  
+  if (!body.friendId) return c.json({ error: 'Missing friendId' }, 400);
+  if (id === body.friendId) return c.json({ error: 'Cannot add yourself' }, 400);
+
+    // Check if friend exists
+    const friendExists = await c.env.DB.prepare('SELECT id, username FROM users WHERE id = ?').bind(body.friendId).first();
+    if (!friendExists) return c.json({ error: 'User not found' }, 404);
+  
+    // Check if already requested or friends
+    const existing = await c.env.DB.prepare('SELECT status FROM friends WHERE user_id = ? AND friend_id = ?').bind(id, body.friendId).first();
+    if (existing) return c.json({ error: 'Already requested or friends' }, 400);
+
+    const now = Date.now();
+    // Insert single unidirectional pending request
+    await c.env.DB.prepare('INSERT INTO friends (user_id, friend_id, status, created_at) VALUES (?, ?, ?, ?)').bind(id, body.friendId, 'pending', now).run();
+    
+    // Fetch my own username for the mail
+    const me = await c.env.DB.prepare('SELECT username FROM users WHERE id = ?').bind(id).first();
+    
+    // Send Mail to target user
+    const mailId = `mail-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
+    const content = `${me?.username || 'Someone'} has sent you a friend request.`;
+    const actionData = JSON.stringify({ requester_id: id, requester_username: me?.username });
+    
+    await c.env.DB.prepare(
+      'INSERT INTO mail (id, title, content, sender, recipient_type, recipient_id, expires_for_new_users, action_type, action_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(mailId, 'Friend Request', content, 'System', 'user', body.friendId, 0, 'friend_request', actionData, now).run();
+  
+    return c.json({ success: true });
+});
+
+// DELETE friend
+app.delete('/api/friends/:id/:friendId', async (c) => {
+  const id = c.req.param('id');
+  const friendId = c.req.param('friendId');
+  const jwtUser = c.get('user') as any;
+  if (!jwtUser || jwtUser.sub !== id) return c.json({ error: 'Unauthorized' }, 401);
+
+  // Delete bidirectionally
+  await c.env.DB.prepare('DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)').bind(id, friendId, friendId, id).run();
+  
+  // Delete chat history for the 1-to-1 room
+  const roomSuffix = [id, friendId].sort().join('_');
+  const roomId = `1to1_${roomSuffix}`;
+  await c.env.DB.prepare('DELETE FROM chat_messages WHERE guild_id = ?').bind(roomId).run();
+    
+  return c.json({ success: true });
+});
+
 // GET user
 app.get('/api/users/:id', async (c) => {
   const id = c.req.param('id');
@@ -64,6 +495,13 @@ app.get('/api/users/:id', async (c) => {
   if (user) {
     const history = await c.env.DB.prepare('SELECT date, distance FROM activity_history WHERE user_id = ? ORDER BY date ASC').bind(id).all();
     user.activityHistory = history.results;
+    
+    if (user.guild_id) {
+      const guild: any = await c.env.DB.prepare('SELECT name FROM guilds WHERE id = ?').bind(user.guild_id).first();
+      if (guild) {
+        user.guildName = guild.name;
+      }
+    }
   }
   return c.json({ user });
 });
@@ -114,6 +552,10 @@ app.post('/api/users/:id', async (c) => {
     if (body.role !== undefined) { updates.push('role = ?'); values.push(body.role); }
     if (body.coins !== undefined) { updates.push('coins = ?'); values.push(body.coins); }
     if (body.totalDistanceKm !== undefined) { updates.push('total_distance_km = ?'); values.push(body.totalDistanceKm); }
+    if (body.bio !== undefined) { updates.push('bio = ?'); values.push(body.bio); }
+    if (body.nationality !== undefined) { updates.push('nationality = ?'); values.push(body.nationality); }
+    if (body.unlocked_badges !== undefined) { updates.push('unlocked_badges = ?'); values.push(typeof body.unlocked_badges === 'string' ? body.unlocked_badges : JSON.stringify(body.unlocked_badges)); }
+    if (body.avatar !== undefined) { updates.push('avatar = ?'); values.push(body.avatar); }
     
     if (updates.length > 0) {
       values.push(id);
@@ -155,6 +597,7 @@ app.delete('/api/users/:id', async (c) => {
     if (itemIds.length > 0) {
       for (const itemId of itemIds) {
         const item = items.results.find((i: any) => i.id === itemId);
+        if (!item) continue;
         const purchases = await c.env.DB.prepare('SELECT id, user_id FROM purchases WHERE item_id = ? AND status = ?').bind(itemId, 'active').all();
         
         for (const p of purchases.results as any[]) {
@@ -209,10 +652,6 @@ app.delete('/api/users/:id', async (c) => {
 });
 
 app.get('/api/map-data', async (c) => {
-  // Ensure columns exist (fail silently if they already exist)
-  try { await c.env.DB.prepare('ALTER TABLE signposts ADD COLUMN likes INTEGER DEFAULT 0').run(); } catch(e) {}
-  try { await c.env.DB.prepare('ALTER TABLE signposts ADD COLUMN liked_by TEXT DEFAULT "[]"').run(); } catch(e) {}
-
   const trees = await c.env.DB.prepare('SELECT trees.*, users.username as authorUsername, users.email as authorEmail FROM trees LEFT JOIN users ON trees.author_id = users.id').all();
   const signposts = await c.env.DB.prepare('SELECT signposts.*, users.username as authorUsername, users.email as authorEmail FROM signposts LEFT JOIN users ON signposts.author_id = users.id').all();
   return c.json({ trees: trees.results, signposts: signposts.results });
@@ -237,7 +676,7 @@ app.delete('/api/trees/:id', async (c) => {
   const tree = await c.env.DB.prepare('SELECT author_id FROM trees WHERE id = ?').bind(id).first();
   if (tree) {
     await c.env.DB.prepare('DELETE FROM trees WHERE id = ?').bind(id).run();
-    await c.env.DB.prepare('UPDATE users SET coins = coins + 100, total_trees_planted = total_trees_planted - 1 WHERE id = ?').bind(tree.author_id).run();
+    await c.env.DB.prepare('UPDATE users SET coins = coins + 100, total_trees_planted = MAX(0, total_trees_planted - 1) WHERE id = ?').bind(tree.author_id).run();
   }
   return c.json({ success: true });
 });
@@ -309,18 +748,8 @@ app.post('/api/settings', async (c) => {
   }
 });
 
-app.get('/api/leaderboard', async (c) => {
-  const users = await c.env.DB.prepare("SELECT id, username, guild_id, coins, total_distance_km, total_trees_planted FROM users WHERE role != 'admin' ORDER BY total_distance_km DESC LIMIT 50").all();
-  return c.json({ users: users.results });
-});
-
 app.get('/api/store', async (c) => {
   try {
-    try {
-      await c.env.DB.prepare("ALTER TABLE point_store ADD COLUMN link TEXT").run();
-    } catch (e) {
-      // Column likely exists, ignore
-    }
     const items = await c.env.DB.prepare("SELECT * FROM point_store WHERE status = 'active' OR status IS NULL").all();
     return c.json({ items: items.results });
   } catch (err: any) {
@@ -333,32 +762,27 @@ app.post('/api/store/buy', async (c) => {
   const body = await c.req.json();
   const { userId, userEmail, itemId, itemName, price, icon } = body;
 
-  const item: any = await c.env.DB.prepare('SELECT merchant_id FROM point_store WHERE id = ?').bind(itemId).first();
-  const merchantId = item ? item.merchant_id : null;
+  const item: any = await c.env.DB.prepare('SELECT merchant_id, price, stock, status FROM point_store WHERE id = ?').bind(itemId).first();
+  if (!item) return c.json({ error: 'Item not found' }, 404);
+  if (item.status === 'disabled') return c.json({ error: 'Item is no longer available' }, 400);
+  if (item.stock === 0) return c.json({ error: 'Item is out of stock' }, 400);
 
-  // Frontend handles the coin deduction via syncToAPI, so we only update the stock
+  const merchantId = item.merchant_id;
+
+  const user: any = await c.env.DB.prepare('SELECT coins FROM users WHERE id = ?').bind(userId).first();
+  if (!user) return c.json({ error: 'User not found' }, 404);
+  if (user.coins < item.price) return c.json({ error: 'Insufficient coins' }, 400);
+
+  // Deduct coins and update stock
+  await c.env.DB.prepare('UPDATE users SET coins = coins - ? WHERE id = ?').bind(item.price, userId).run();
   await c.env.DB.prepare('UPDATE point_store SET stock = stock - 1 WHERE id = ? AND stock > 0').bind(itemId).run();
-  
-  // Merchant earned coins are kept separate from standard user coins for future use (e.g. subscription discounts)
-  // They are calculated dynamically from the purchases table on the merchant dashboard.
   
   const purchaseId = `purchase-${Date.now()}`;
   await c.env.DB.prepare(
     'INSERT INTO purchases (id, user_id, merchant_id, item_id, item_name, price, status, purchased_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(purchaseId, userId, merchantId, itemId, itemName, price, 'active', Date.now()).run();
+  ).bind(purchaseId, userId, merchantId, itemId, itemName, item.price, 'active', Date.now()).run();
 
-  return c.json({ success: true, purchaseId });
-});
-
-app.post('/api/admin/cleanup', async (c) => {
-  // Clean up trees, signposts, and demo requests older than 3 days
-  const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
-  
-  await c.env.DB.prepare('DELETE FROM trees WHERE planted_at < ?').bind(threeDaysAgo).run();
-  await c.env.DB.prepare('DELETE FROM signposts WHERE created_at < ?').bind(threeDaysAgo).run();
-  await c.env.DB.prepare('DELETE FROM demo_requests WHERE requested_at < ?').bind(threeDaysAgo).run();
-
-  return c.json({ success: true, message: 'Cleanup complete' });
+  return c.json({ success: true, purchaseId, remainingCoins: user.coins - item.price });
 });
 
 app.get('/api/admin/dashboard', async (c) => {
@@ -372,6 +796,8 @@ app.get('/api/admin/dashboard', async (c) => {
   const demoRequests = await c.env.DB.prepare('SELECT * FROM demo_requests').all();
   const mail = await c.env.DB.prepare('SELECT * FROM mail ORDER BY created_at DESC').all();
 
+  const guilds = await c.env.DB.prepare('SELECT g.*, (SELECT COUNT(*) FROM users u WHERE u.guild_id = g.id) as member_count FROM guilds g').all();
+
   return c.json({
     users: users.results,
     trees: trees.results,
@@ -381,8 +807,46 @@ app.get('/api/admin/dashboard', async (c) => {
     merchants: merchants.results,
     applications: applications.results,
     demoRequests: demoRequests.results,
-    sentMails: mail.results
+    sentMails: mail.results,
+    guilds: guilds.results
   });
+});
+
+app.post('/api/admin/users/:id/ban', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json(); // { duration: '3d' | '14d' | '3m' | 'forever' | null }
+  let bannedUntil = null;
+  if (body.duration) {
+    const now = Date.now();
+    if (body.duration === '3d') bannedUntil = now + (3 * 24 * 60 * 60 * 1000);
+    else if (body.duration === '14d') bannedUntil = now + (14 * 24 * 60 * 60 * 1000);
+    else if (body.duration === '3m') bannedUntil = now + (90 * 24 * 60 * 60 * 1000);
+    else if (body.duration === 'forever') bannedUntil = -1; // -1 means forever
+  }
+  
+  await c.env.DB.prepare('UPDATE users SET banned_until = ? WHERE id = ?').bind(bannedUntil, id).run();
+  return c.json({ success: true, bannedUntil });
+});
+
+app.delete('/api/admin/guilds/:id', async (c) => {
+  const id = c.req.param('id');
+  await c.env.DB.prepare('UPDATE users SET guild_id = NULL, muted_until = NULL WHERE guild_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM chat_messages WHERE guild_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM guilds WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+app.put('/api/admin/guilds/:id/admin', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  if (!body.admin_id) return c.json({ error: 'Missing admin_id' }, 400);
+
+  // Validate the user actually exists
+  const user = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(body.admin_id).first();
+  if (!user) return c.json({ error: 'User does not exist' }, 404);
+
+  await c.env.DB.prepare('UPDATE guilds SET admin_id = ? WHERE id = ?').bind(body.admin_id, id).run();
+  return c.json({ success: true });
 });
 
 app.post('/api/admin/cleanup', async (c) => {
@@ -398,11 +862,21 @@ app.post('/api/admin/cleanup', async (c) => {
   
   // Trees > configured days
   const treeThreshold = Date.now() - (treeIntervalDays * 24 * 60 * 60 * 1000);
+  
+  // Decrement total_trees_planted for users whose trees are being cleaned up
+  const treesToDelete = await c.env.DB.prepare('SELECT author_id, COUNT(*) as count FROM trees WHERE planted_at < ? GROUP BY author_id').bind(treeThreshold).all();
+  for (const row of treesToDelete.results as any[]) {
+    await c.env.DB.prepare('UPDATE users SET total_trees_planted = MAX(total_trees_planted - ?, 0) WHERE id = ?').bind(row.count, row.author_id).run();
+  }
+  
   await c.env.DB.prepare('DELETE FROM trees WHERE planted_at < ?').bind(treeThreshold).run();
   
   // Signposts > 3 days (fixed)
   const spThreshold = Date.now() - (3 * 24 * 60 * 60 * 1000);
   await c.env.DB.prepare('DELETE FROM signposts WHERE created_at < ?').bind(spThreshold).run();
+  
+  // Guild Join Requests > 3 days
+  await c.env.DB.prepare("DELETE FROM mail WHERE action_type = 'guild_join_request' AND created_at < ?").bind(spThreshold).run();
   
   // Recalibrate user stats from activity_history
   const users = await c.env.DB.prepare('SELECT id FROM users').all();
@@ -433,17 +907,43 @@ app.post('/api/activity', async (c) => {
   return c.json({ success: true, id });
 });
 
-// Mail
-app.get('/api/mail', async (c) => {
-  try { await c.env.DB.prepare('ALTER TABLE mail ADD COLUMN recipient_name TEXT').run(); } catch(e) {}
-  const mail = await c.env.DB.prepare('SELECT * FROM mail ORDER BY created_at DESC').all();
-  return c.json({ mail: mail.results });
-});
+  // Mail
+  app.get('/api/mail', async (c) => {
+    
+    // Check if user is authenticated (to filter out their deleted mails)
+    let deletedMailIds: string[] = [];
+    let readMailIds: string[] = [];
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
+        const { payload } = await jwtVerify(token, JWKS, { 
+          issuer: `https://securetoken.google.com/${c.env.FIREBASE_PROJECT_ID || 'ecostride-d4aec'}`,
+          audience: c.env.FIREBASE_PROJECT_ID || 'ecostride-d4aec'
+        });
+        if (payload.sub) {
+          const deleted = await c.env.DB.prepare('SELECT mail_id FROM user_deleted_mail WHERE user_id = ?').bind(payload.sub).all();
+          deletedMailIds = deleted.results.map((r: any) => r.mail_id);
+          const read = await c.env.DB.prepare('SELECT mail_id FROM user_read_mail WHERE user_id = ?').bind(payload.sub).all();
+          readMailIds = read.results.map((r: any) => r.mail_id);
+        }
+      } catch (e) {
+        // Just ignore if token is invalid, they'll just get all mail
+      }
+    }
+    
+    const mail = await c.env.DB.prepare('SELECT * FROM mail ORDER BY created_at DESC').all();
+    let filteredMail = mail.results;
+    if (deletedMailIds.length > 0) {
+      filteredMail = filteredMail.filter(m => !deletedMailIds.includes(m.id as string));
+    }
+    
+    return c.json({ mail: filteredMail, read_mail_ids: readMailIds });
+  });
 app.post('/api/mail', async (c) => {
   const body = await c.req.json();
   const id = `mail-${Date.now()}`;
-  
-  try { await c.env.DB.prepare('ALTER TABLE mail ADD COLUMN recipient_name TEXT').run(); } catch(e) {}
 
   let finalRecipientId = body.recipientId || null;
   let finalRecipientName = null;
@@ -455,6 +955,13 @@ app.post('/api/mail', async (c) => {
     }
     finalRecipientId = user.id;
     finalRecipientName = user.username;
+  } else if (body.recipientType === 'guild' && body.recipientId) {
+    const guild: any = await c.env.DB.prepare('SELECT id, name FROM guilds WHERE name = ? OR id = ?').bind(body.recipientId, body.recipientId).first();
+    if (!guild) {
+      return c.json({ success: false, error: 'Community not found matching name or UID' }, 404);
+    }
+    finalRecipientId = guild.id;
+    finalRecipientName = guild.name;
   }
 
   await c.env.DB.prepare(
@@ -462,11 +969,59 @@ app.post('/api/mail', async (c) => {
   ).bind(id, body.title, body.content, body.sender, body.recipientType, finalRecipientId, finalRecipientName, body.expiresForNewUsers ? 1 : 0, Date.now()).run();
   return c.json({ success: true });
 });
-app.delete('/api/mail/:id', async (c) => {
-  const id = c.req.param('id');
-  await c.env.DB.prepare('DELETE FROM mail WHERE id = ?').bind(id).run();
-  return c.json({ success: true });
-});
+  app.delete('/api/mail/:id', async (c) => {
+    const id = c.req.param('id');
+    await c.env.DB.prepare('DELETE FROM mail WHERE id = ?').bind(id).run();
+    return c.json({ success: true });
+  });
+
+  app.delete('/api/mail/user/:id', async (c) => {
+    const user = c.get('user') as any;
+    if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    const id = c.req.param('id');
+    
+    await c.env.DB.prepare('INSERT OR IGNORE INTO user_deleted_mail (user_id, mail_id, deleted_at) VALUES (?, ?, ?)').bind(user.sub, id, Date.now()).run();
+    return c.json({ success: true });
+  });
+
+  app.post('/api/mail/user/batch-delete', async (c) => {
+    const user = c.get('user') as any;
+    if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    const body = await c.req.json();
+    if (!body.ids || !Array.isArray(body.ids)) return c.json({ error: 'Invalid input' }, 400);
+    
+    const now = Date.now();
+    for (const mailId of body.ids) {
+      await c.env.DB.prepare('INSERT OR IGNORE INTO user_deleted_mail (user_id, mail_id, deleted_at) VALUES (?, ?, ?)').bind(user.sub, mailId, now).run();
+    }
+    
+    return c.json({ success: true });
+  });
+
+  app.post('/api/mail/user/:id/read', async (c) => {
+    const user = c.get('user') as any;
+    if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    const id = c.req.param('id');
+    
+    await c.env.DB.prepare('INSERT OR IGNORE INTO user_read_mail (user_id, mail_id, read_at) VALUES (?, ?, ?)').bind(user.sub, id, Date.now()).run();
+    return c.json({ success: true });
+  });
+
+  app.post('/api/mail/user/batch-read', async (c) => {
+    const user = c.get('user') as any;
+    if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    const body = await c.req.json();
+    if (!body.ids || !Array.isArray(body.ids)) return c.json({ error: 'Invalid input' }, 400);
+    
+    const now = Date.now();
+    for (const mailId of body.ids) {
+      await c.env.DB.prepare('INSERT OR IGNORE INTO user_read_mail (user_id, mail_id, read_at) VALUES (?, ?, ?)').bind(user.sub, mailId, now).run();
+    }
+    
+    return c.json({ success: true });
+  });
 
 app.delete('/api/trees', async (c) => {
   await c.env.DB.prepare('DELETE FROM trees').run();
@@ -555,6 +1110,7 @@ app.delete('/api/merchants/:id', async (c) => {
       if (itemIds.length > 0) {
         for (const itemId of itemIds) {
           const item = items.results.find((i: any) => i.id === itemId);
+          if (!item) continue;
           const purchases = await c.env.DB.prepare('SELECT id, user_id FROM purchases WHERE item_id = ? AND status = ?').bind(itemId, 'active').all();
           
           for (const p of purchases.results as any[]) {
@@ -791,6 +1347,88 @@ app.post('/api/users/:uid/verify', async (c) => {
   await c.env.DB.prepare('UPDATE users SET verified_email = 1 WHERE id = ?').bind(uid).run();
   return c.json({ success: true });
 });
+
+  // Admin Actions
+  app.post('/api/guilds/:id/members/:memberId/kick', async (c) => {
+    const user = c.get('user') as any;
+    if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    const guildId = c.req.param('id');
+    const memberId = c.req.param('memberId');
+    const body = await c.req.json().catch(() => ({}));
+    const reason = body.reason || 'No reason provided';
+    
+    const guild = await c.env.DB.prepare('SELECT admin_id, name FROM guilds WHERE id = ?').bind(guildId).first() as any;
+    if (!guild || guild.admin_id !== user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    await c.env.DB.prepare('UPDATE users SET guild_id = NULL, muted_until = NULL WHERE id = ? AND guild_id = ?').bind(memberId, guildId).run();
+    
+    // Notify user
+    await c.env.DB.prepare(
+      'INSERT INTO mail (id, title, content, sender, recipient_type, recipient_id, expires_for_new_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(crypto.randomUUID(), 'Kicked from Community', `You have been removed from ${guild.name} by the admin. Reason: ${reason}`, 'System', 'user', memberId, 0, Date.now()).run();
+    
+    return c.json({ success: true });
+  });
+
+  app.post('/api/guilds/:id/members/:memberId/mute', async (c) => {
+    const user = c.get('user') as any;
+    if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    const guildId = c.req.param('id');
+    const memberId = c.req.param('memberId');
+    const { durationMs, action } = await c.req.json();
+    
+    const guild = await c.env.DB.prepare('SELECT admin_id FROM guilds WHERE id = ?').bind(guildId).first() as any;
+    if (!guild || guild.admin_id !== user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    if (action === 'unmute') {
+      await c.env.DB.prepare('UPDATE users SET muted_until = NULL WHERE id = ? AND guild_id = ?').bind(memberId, guildId).run();
+    } else {
+      const mutedUntil = durationMs === -1 ? -1 : Date.now() + durationMs;
+      await c.env.DB.prepare('UPDATE users SET muted_until = ? WHERE id = ? AND guild_id = ?').bind(mutedUntil, memberId, guildId).run();
+    }
+    
+    return c.json({ success: true });
+  });
+
+  app.post('/api/guilds/:id/transfer_admin', async (c) => {
+    const user = c.get('user') as any;
+    if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    const guildId = c.req.param('id');
+    const { newAdminId } = await c.req.json();
+    
+    const guild = await c.env.DB.prepare('SELECT admin_id, name FROM guilds WHERE id = ?').bind(guildId).first() as any;
+    if (!guild || guild.admin_id !== user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    await c.env.DB.prepare('UPDATE guilds SET admin_id = ? WHERE id = ?').bind(newAdminId, guildId).run();
+    
+    await c.env.DB.prepare(
+      'INSERT INTO mail (id, title, content, sender, recipient_type, recipient_id, expires_for_new_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(crypto.randomUUID(), 'Promoted to Admin', `You have been promoted to become an admin of ${guild.name}.`, 'System', 'user', newAdminId, 0, Date.now()).run();
+    
+    return c.json({ success: true });
+  });
+
+  app.delete('/api/guilds/:id', async (c) => {
+    const user = c.get('user') as any;
+    if (!user || !user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    const guildId = c.req.param('id');
+    const guild = await c.env.DB.prepare('SELECT admin_id FROM guilds WHERE id = ?').bind(guildId).first() as any;
+    if (!guild || guild.admin_id !== user.sub) return c.json({ error: 'Unauthorized' }, 401);
+    
+    const memberCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE guild_id = ?').bind(guildId).first() as any;
+    if (memberCount.count > 1) {
+      return c.json({ error: 'Cannot delete community with members. Transfer admin first.' }, 400);
+    }
+    
+    await c.env.DB.prepare('UPDATE users SET guild_id = NULL, muted_until = NULL WHERE guild_id = ?').bind(guildId).run();
+    await c.env.DB.prepare('DELETE FROM guilds WHERE id = ?').bind(guildId).run();
+    
+    return c.json({ success: true });
+  });
 
 export default {
   fetch: app.fetch,

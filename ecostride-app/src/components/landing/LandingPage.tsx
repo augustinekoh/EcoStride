@@ -204,9 +204,8 @@ export const LandingPage: React.FC = () => {
 
       {/* Top Action Bar (Expandable) */}
       <div className="flex justify-end mb-6 relative z-50 mt-[-4rem]">
-        <div className="flex items-center">
-          <div className={`flex items-center gap-2 overflow-hidden py-2 px-1 transition-all duration-500 ease-out origin-right ${isActionMenuOpen ? 'max-w-[600px] opacity-100 pr-3' : 'max-w-0 opacity-0 pr-0'}`}>
-            <div className="relative">
+          <div className="flex items-center gap-2">
+            <div className="relative z-[60]">
               <button 
                 onClick={() => {
                   setShowNotifications(!showNotifications);
@@ -220,6 +219,7 @@ export const LandingPage: React.FC = () => {
                 )}
               </button>
             </div>
+            <div className={`flex items-center gap-2 overflow-hidden py-2 px-1 transition-all duration-500 ease-out origin-right ${isActionMenuOpen ? 'max-w-[600px] opacity-100 pr-3' : 'max-w-0 opacity-0 pr-0'}`}>
             <button 
               onClick={() => setShowMailbox(true)}
               className="glass-card px-4 py-2 rounded-2xl flex items-center gap-2 hover:-translate-y-1 transition-transform whitespace-nowrap relative shadow-sm"

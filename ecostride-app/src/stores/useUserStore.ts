@@ -38,19 +38,33 @@ interface UserState {
   clearNotifications: () => void
   hasReadAlerts: boolean
   setHasReadAlerts: (read: boolean) => void
+  guildId?: string | null
+  guildName?: string | null
+  setGuildId: (id: string | null) => void
+  setGuildName: (name: string | null) => void
 }
 
-const syncToAPI = async (data: any) => {
-  if (auth.currentUser) {
+let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+let pendingSync: Record<string, any> = {};
+
+const syncToAPI = async (data: Record<string, any>) => {
+  Object.assign(pendingSync, data);
+  if (syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(async () => {
+    const dataToSync = { ...pendingSync };
+    pendingSync = {};
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
     try {
-      await apiClient(`/users/${auth.currentUser.uid}`, {
+      await apiClient(`/users/${uid}`, {
         method: 'POST',
-        body: JSON.stringify(data)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSync),
       });
-    } catch (e) {
-      console.error("Failed to sync to API:", e);
+    } catch (err) {
+      console.error('Sync failed:', err);
     }
-  }
+  }, 300);
 };
 
 export const useUserStore = create<UserState>()(
@@ -79,8 +93,12 @@ export const useUserStore = create<UserState>()(
       unlockedBadges: [],
       activityHistory: [],
       createdAt: undefined,
+      guildId: null,
+      guildName: null,
       hasReadAlerts: false,
       setHasReadAlerts: (read) => set({ hasReadAlerts: read }),
+      setGuildId: (id) => set({ guildId: id }),
+      setGuildName: (name) => set({ guildName: name }),
       setLocalData: (data) => set((state) => ({ ...state, ...data })),
       setUserData: (data) => set((state) => {
         const newState = { ...state, ...data };
@@ -94,7 +112,7 @@ export const useUserStore = create<UserState>()(
         return { userCoins: newCoins };
       }),
       deductCoins: (amount) => set((state) => {
-        const newCoins = state.userCoins - amount;
+        const newCoins = Math.max(state.userCoins - amount, 0);
         syncToAPI({ coins: newCoins });
         return { userCoins: newCoins };
       }),
@@ -133,6 +151,12 @@ export const useUserStore = create<UserState>()(
     }),
     {
       name: 'ecostride-user-store',
+      partialize: (state) => ({
+        userCoins: state.userCoins,
+        totalDistanceKm: state.totalDistanceKm,
+        totalCarbonSaved: state.totalCarbonSaved,
+        activityHistory: state.activityHistory,
+      }),
     }
   )
 )

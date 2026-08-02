@@ -5,11 +5,12 @@ import { useDemoStore } from '../../stores/useDemoStore';
 import { Store, Tag, Plus, Edit2, Trash2, Clock, AlertCircle, ChevronLeft, ShoppingBag, CheckCircle, XCircle, Gift, DollarSign, MapPin, Search } from 'lucide-react';
 import Map, { Marker } from 'react-map-gl/mapbox';
 import { MAPBOX_TOKEN } from '../../lib/mapboxAPI';
+
 import { useUserStore } from '../../stores/useUserStore';
 
 export const MerchantDashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const { userData } = useUserStore();
+  const { username } = useUserStore();
   const { setActiveView } = useDemoStore();
   
   const [merchantData, setMerchantData] = useState<any>(null);
@@ -136,7 +137,7 @@ export const MerchantDashboard: React.FC = () => {
           ownerId: user.uid,
           type: 'modification',
           details: JSON.stringify({
-            username: userData?.username || user.email?.split('@')[0] || 'Unknown',
+            username: username || user.email?.split('@')[0] || 'Unknown',
             uid: user.uid,
             storeName: editStoreName,
             menuLink: editMenuLink,
